@@ -1,4 +1,4 @@
-# SOEN 342 Project - Section H
+# SOEN 342 Project - Section II
 
 ## Group Members
 
