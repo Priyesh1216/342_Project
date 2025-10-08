@@ -35,6 +35,8 @@ public class CSVReader {
         // Read in the contents of the CSV file into the data ArrayList
 
         try(BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(filepath), StandardCharsets.UTF_8))) {
+            System.out.println("Reading data");
+
             String line;                        // One line of the CSV file, read in as a string
             String[] splitLine;                 // The line string, split into an array
             ArrayList<String> lineArrayList;    // The split array, converted into an ArrayList to be stored in 2D data ArrayList
@@ -80,8 +82,10 @@ public class CSVReader {
 
         } catch (FileNotFoundException e) {
             System.out.println("Could not locate file.");
+            System.exit(1);
         } catch (IOException e) {
             System.out.println("Something went wrong.");
+            System.exit(1);
         }
     }
 
