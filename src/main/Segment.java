@@ -1,15 +1,12 @@
-import java.time.Duration;
 
 public class Segment {
-    
-    private Duration connectionDuration;
+    private Connection connection;
 
-    public Segment(Duration connectionDuration) {
-        this.connectionDuration = connectionDuration;
+    public Segment(Connection connection) {
+        this.connection = connection;
     }
 
-    public Duration getConnectionDuration() {
-        return connectionDuration;
+    public Connection getConnection() {
+        return connection;
     }
-
 }
