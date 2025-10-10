@@ -88,7 +88,7 @@ public class RailwaySystem {
     }
 
     public List<Trip> searchConnections(String depCity, String arrCity, String depTime, String arrTime,
-            String trainType, String daysOp, boolean firstClass) {
+            String trainType, String daysOp, boolean firstClass, int maxStops, java.time.DayOfWeek startDay) {
         List<Trip> allTrips = new ArrayList<>();
 
         // Parse the time into minutes
@@ -98,7 +98,11 @@ public class RailwaySystem {
         // Find direct connections with ALL filters
         List<Connection> directConnections = connections.findMatching(depCity, arrCity,
                 depTimeMinutes, arrTimeMinutes, trainType, daysOp);
-
+        
+                if(startDay != null){
+                    directConnections.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay)
+                    );
+                }
         // Create a trip for each direct connection
         for (Connection conn : directConnections) {
             Trip trip = new Trip();
@@ -110,35 +114,91 @@ public class RailwaySystem {
         // Make sure that both the arrival and departure cities are filled in because
         // otherwise there will be too many combinations
         if (depCity != null && !depCity.trim().isEmpty() && arrCity != null && !arrCity.trim().isEmpty()) {
-            List<Trip> oneStopTrips = findOneStopTrips(depCity, arrCity, depTimeMinutes, arrTimeMinutes,
-                    trainType, daysOp, firstClass);
-            allTrips.addAll(oneStopTrips);
+            if (maxStops >= 1) {
+                List<Trip> oneStopTrips = findOneStopTrips(depCity, arrCity, depTimeMinutes, arrTimeMinutes,
+                        trainType, daysOp, firstClass, startDay);
+                allTrips.addAll(oneStopTrips);
+            }
 
-            List<Trip> twoStopTrips = findTwoStopTrips(depCity, arrCity, depTimeMinutes, arrTimeMinutes,
-                    trainType, daysOp, firstClass);
-            allTrips.addAll(twoStopTrips);
+            if (maxStops >= 2) {
+                List<Trip> twoStopTrips = findTwoStopTrips(depCity, arrCity, depTimeMinutes, arrTimeMinutes,
+                        trainType, daysOp, firstClass, directConnections, startDay);
+                allTrips.addAll(twoStopTrips);
+            }
         }
 
         return allTrips;
     }
 
     private List<Trip> findOneStopTrips(String depCity, String arrCity, Integer depTime, Integer arrTime,
-            String trainType, String daysOp, boolean firstClass) {
+            String trainType, String daysOp, boolean firstClass, java.time.DayOfWeek startDay) {
         List<Trip> trips = new ArrayList<>();
 
         // Find all first legs departing from origin
-        List<Connection> firstSegment = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        
+        if(startDay != null) {
+            firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
+        }
+        for (Connection firstSegment : firstSegments) {
+            List<Connection> secondSegments = connections.findMatching(firstSegment.getArrivalCity().getName(), arrCity,
+                    null, arrTime, trainType, daysOp);
 
+            for (Connection secondSegment : secondSegments) {
+                int transferTime = calculateTransferTime(firstSegment, secondSegment);
+                Trip trip = new Trip();
+                trip.addSegment(new Segment(firstSegment));
+                trip.addSegment(new Segment(secondSegment));
+
+                trip.computeTotals(firstClass, transferTime);
+                trips.add(trip);
+            }
+        }
         return trips;
     }
 
     private List<Trip> findTwoStopTrips(String depCity, String arrCity, Integer depTime, Integer arrTime,
-            String trainType, String daysOp, boolean firstClass) {
+            String trainType, String daysOp, boolean firstClass, List<Connection> directConnections, java.time.DayOfWeek startDay) {
         List<Trip> trips = new ArrayList<>();
 
         // Find all first legs departing from origin
-        List<Connection> firstSegment = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
 
+        if(startDay != null){
+            firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
+        }
+        for (Connection firstSegment : firstSegments) {
+
+            if (isDirectConnection(firstSegment, directConnections)) {
+                continue;
+            }
+            List<Connection> secondSegments = connections.findMatching(firstSegment.getArrivalCity().getName(), null,
+                    null, null, trainType, daysOp);
+
+            for (Connection secondSegment : secondSegments) {
+
+                if (isDirectConnection(secondSegment, directConnections)) {
+                    continue;
+                }
+                List<Connection> thirdSegments = connections.findMatching(secondSegment.getArrivalCity().getName(),
+                        arrCity, null, arrTime, trainType, daysOp);
+                for (Connection thirdSegment : thirdSegments) {
+                    if (isDirectConnection(thirdSegment, directConnections)) {
+                        continue;
+                    }
+                    int transferTime1 = calculateTransferTime(firstSegment, secondSegment);
+                    int transferTime2 = calculateTransferTime(secondSegment, thirdSegment);
+
+                    Trip trip = new Trip();
+                    trip.addSegment(new Segment(firstSegment));
+                    trip.addSegment(new Segment(secondSegment));
+                    trip.addSegment(new Segment(thirdSegment));
+
+                    trip.computeTotals(firstClass, transferTime1 + transferTime2);
+                    trips.add(trip);
+                }
+            }
+        }
         return trips;
     }
 
@@ -158,7 +218,85 @@ public class RailwaySystem {
         }
     }
 
+    private int calculateTransferTime(Connection firstSegment, Connection secondSegment) {
+        int arrivalMinutes = firstSegment.getArrivalTime().getHour() * 60 + firstSegment.getArrivalTime().getMinute();
+        int departureMinutes = secondSegment.getDepartureTime().getHour() * 60
+                + secondSegment.getDepartureTime().getMinute();
+
+        if (departureMinutes < arrivalMinutes) {
+            departureMinutes += 24 * 60;
+        }
+        return departureMinutes - arrivalMinutes;
+    }
+
     public int getConnectionCount() {
         return connections.getCount();
+    }
+
+    private boolean isDirectConnection(Connection conn, List<Connection> directConnections) {
+        for (Connection directConn : directConnections) {
+            if (conn.getDepartureCity().equals(directConn.getDepartureCity()) &&
+                    conn.getArrivalCity().equals(directConn.getArrivalCity()) &&
+                    conn.getDepartureTime().equals(directConn.getDepartureTime()) &&
+                    conn.getArrivalTime().equals(directConn.getArrivalTime())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // parses selected days of the week
+    // turns day range to list of days
+    private java.util.Set<java.time.DayOfWeek> parseDays(String raw) {
+        java.util.Set<java.time.DayOfWeek> out = new java.util.HashSet<>();
+        if (raw == null || raw.isBlank()) return out;
+        String s = raw.trim().toLowerCase()
+                .replace("–", "-").replace("—", "-"); // normalize en/em dash to hyphen
+
+        if (s.equals("daily")) {
+            for (var d : java.time.DayOfWeek.values()) out.add(d);
+            return out;
+        }
+
+        for (String part : s.split(",")) {
+            String token = part.trim();
+            if (token.contains("-")) {
+                String[] ab = token.split("-");
+                if (ab.length == 2) {
+                    var a = parseDay(ab[0]);
+                    var b = parseDay(ab[1]);
+                    if (a != null && b != null) addRange(out, a, b);
+                }
+            } else {
+                var d = parseDay(token);
+                if (d != null) out.add(d);
+            }
+        }
+        return out;
+    }
+
+    private java.time.DayOfWeek parseDay(String t) {
+        if (t == null) return null;
+        t = t.trim().toLowerCase();
+        if (t.length() >= 3) t = t.substring(0, 3);
+        switch (t) {
+            case "mon": return java.time.DayOfWeek.MONDAY;
+            case "tue": return java.time.DayOfWeek.TUESDAY;
+            case "wed": return java.time.DayOfWeek.WEDNESDAY;
+            case "thu": return java.time.DayOfWeek.THURSDAY;
+            case "fri": return java.time.DayOfWeek.FRIDAY;
+            case "sat": return java.time.DayOfWeek.SATURDAY;
+            case "sun": return java.time.DayOfWeek.SUNDAY;
+            default: return null;
+        }
+    }
+
+    private void addRange(java.util.Set<java.time.DayOfWeek> out, java.time.DayOfWeek a, java.time.DayOfWeek b) {
+        int i = a.getValue() - 1, j = b.getValue() - 1;
+        for (int k = 0; k < 7; k++) {
+            int idx = (i + k) % 7;
+            out.add(java.time.DayOfWeek.of(idx + 1));
+            if (idx == j) break;
+        }
     }
 }
