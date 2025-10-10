@@ -16,6 +16,6 @@
    - Extract the zip file to a location on your computer
    - Note the path to the lib folder (example: C:\javafx-sdk-17\lib or /path/to/javafx-sdk-17/lib)
 4. Change the FILE_PATH to the file path of you JavaFX lib folder in the launch.json and settings.json files.
-5. Run the following commands in the main folder of the code (342_Project/src/main)
-  To compile: `javac --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI.java`
-  To run: `java --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
+5. Run the following commands in the main folder of the code (342_Project/src/main)<br>
+  **To compile:** `javac --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI.java`<br>
+  **To run:** `java --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
