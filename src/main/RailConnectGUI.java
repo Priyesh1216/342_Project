@@ -2,7 +2,11 @@
 // Java standard library imports
 import java.io.File;
 import java.util.List;
+import java.util.Set;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.time.DayOfWeek;
 
 // JavaFX imports
 import javafx.application.Application;
@@ -38,6 +42,8 @@ public class RailConnectGUI extends Application {
     private CheckBox firstClassCheck;
     private ComboBox<String> maxStopsCombo;
     private ComboBox<String> sortCombo;
+    private ComboBox<DayOfWeek> startDayCombo;
+    private DayOfWeek lastSelectedStartDay;
 
     // Day checkboxes
     private CheckBox mondayCheck;
@@ -129,6 +135,16 @@ public class RailConnectGUI extends Application {
                 mondayCheck, tuesdayCheck, wednesdayCheck, thursdayCheck,
                 fridayCheck, saturdayCheck, sundayCheck);
 
+        // Departure day
+        Label startDayLabel = new Label("Departing Day:");
+        startDayCombo = new ComboBox<>();
+        startDayCombo.getItems().addAll(
+            DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+            DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
+        );
+        startDayCombo.setValue(DayOfWeek.MONDAY);
+        startDayCombo.setMaxWidth(Double.MAX_VALUE);
+        
         // Max Stops dropdown
         Label maxStopsLabel = new Label("Max Stops:");
         maxStopsCombo = new ComboBox<>();
@@ -176,6 +192,7 @@ public class RailConnectGUI extends Application {
                 monFriCheck,
                 individualDaysLabel,
                 individualDaysBox,
+                startDayLabel, startDayCombo,
                 maxStopsLabel, maxStopsCombo,
                 sortLabel, sortCombo,
                 new Label(" "), // Spacer
@@ -257,6 +274,7 @@ public class RailConnectGUI extends Application {
         String trainType = trainTypeField.getText().trim();
         boolean firstClass = firstClassCheck.isSelected();
         String maxStops = maxStopsCombo.getValue();
+        
 
         // Build days filter from checkboxes
         StringBuilder daysBuilder = new StringBuilder();
@@ -309,6 +327,8 @@ public class RailConnectGUI extends Application {
                 maxStopsCount = 1;
             }
 
+            DayOfWeek startDay = startDayCombo.getValue();
+            this.lastSelectedStartDay = startDay;
             // Call search with all parameters
             List<Trip> trips = system.searchConnections(
                     depCity.isEmpty() ? null : depCity,
@@ -318,7 +338,8 @@ public class RailConnectGUI extends Application {
                     trainType.isEmpty() ? null : trainType,
                     days,
                     firstClass,
-                    maxStopsCount);
+                    maxStopsCount,
+                    startDay);
 
             // Sort trips based on selected option
             String sortOption = sortCombo.getValue();
@@ -380,7 +401,8 @@ public class RailConnectGUI extends Application {
                 sb.append("\nSegments:\n");
                 int segNum = 1;
                 int totalTransferTime = 0;
-
+                
+                DayOfWeek currentDepartureDay = (lastSelectedStartDay != null) ? lastSelectedStartDay : DayOfWeek.MONDAY;
                 for (int i = 0; i < trip.getSegments().size(); i++) {
                     Segment seg = trip.getSegments().get(i);
                     Connection conn = seg.getConnection();
@@ -395,14 +417,22 @@ public class RailConnectGUI extends Application {
                             " | Days: " + conn.getDaysOfOperation() +
                             " | Duration: " + conn.getFormattedDuration() + "\n");
 
+                    DayOfWeek currentArrivalDay = arrivalDayFor(conn, currentDepartureDay);
                     // Calculate and display transfer time between segments
                     if (i < trip.getSegments().size() - 1) {
                         Segment nextSeg = trip.getSegments().get(i + 1);
                         Connection nextConn = nextSeg.getConnection();
 
-                        int transferTime = calculateTransferTime(conn, nextConn);
+                        int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
                         totalTransferTime += transferTime;
-                        sb.append("     Transfer time: " + formatDuration(transferTime) + "\n");
+                        sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
+
+                        int arrMin = toMinutes(conn.getArrivalTime());
+                        int depMin = toMinutes(nextConn.getDepartureTime());
+                        int daysWaited = (transferTime + arrMin > depMin) ? ((transferTime + arrMin - depMin + (24 * 60 -1)) / (24*60)) : 0;
+                        DayOfWeek nextDepartureDay = plusDays(currentArrivalDay, daysWaited);
+
+                        currentDepartureDay = nextDepartureDay;
                     }
 
                     segNum++;
@@ -436,6 +466,7 @@ public class RailConnectGUI extends Application {
         fridayCheck.setSelected(false);
         saturdayCheck.setSelected(false);
         sundayCheck.setSelected(false);
+        startDayCombo.setValue(DayOfWeek.MONDAY);
         maxStopsCombo.setValue("Max 2 Stops");
         sortCombo.setValue("Sort by Duration");
         firstClassCheck.setSelected(false);
@@ -464,6 +495,106 @@ public class RailConnectGUI extends Application {
         } else {
             return mins + "m";
         }
+    }
+
+    
+    private Set<DayOfWeek> parseDaysOfOperation(String daysOpRaw) {
+        Set<DayOfWeek> out = new HashSet<>();
+        if (daysOpRaw == null || daysOpRaw.isBlank()) return out;
+
+        // Normalize common dash characters and lowercase everything
+        String s = daysOpRaw.trim()
+                .replace("–", "-")
+                .replace("—", "-")
+                .toLowerCase();
+
+        if (s.equals("daily")) {
+            out.addAll(Arrays.asList(DayOfWeek.values()));
+            return out;
+        }
+
+        // Handle ranges like "mon-fri", "fri-sun", etc.
+        String[] parts = s.split(",");
+        for (String part : parts) {
+            String token = part.trim();
+            if (token.contains("-")) {
+                String[] range = token.split("-");
+                if (range.length == 2) {
+                    DayOfWeek start = parseDayToken(range[0].trim());
+                    DayOfWeek end = parseDayToken(range[1].trim());
+                    if (start != null && end != null) {
+                        addInclusiveRange(out, start, end);
+                    }
+                }
+            } else {
+                DayOfWeek d = parseDayToken(token);
+                if (d != null) out.add(d);
+            }
+        }
+
+        return out;
+    }
+
+    private DayOfWeek parseDayToken(String tokRaw) {
+        if (tokRaw == null) return null;
+        switch (tokRaw.substring(0, 3)) {
+            case "mon": return DayOfWeek.MONDAY;
+            case "tue": return DayOfWeek.TUESDAY;
+            case "wed": return DayOfWeek.WEDNESDAY;
+            case "thu": return DayOfWeek.THURSDAY;
+            case "fri": return DayOfWeek.FRIDAY;
+            case "sat": return DayOfWeek.SATURDAY;
+            case "sun": return DayOfWeek.SUNDAY;
+            default: return null;
+        }
+    }
+
+    private void addInclusiveRange(Set<DayOfWeek> out, DayOfWeek start, DayOfWeek end) {
+        int i = start.getValue() - 1;
+        int j = end.getValue() - 1;
+        for (int k = 0; k < 7; k++) {
+            int idx = (i + k) % 7;
+            out.add(DayOfWeek.of(idx + 1));
+            if (idx == j) break;
+        }
+    }
+
+
+    private DayOfWeek plusDays(DayOfWeek d, int add) {
+        int idx = (d.getValue() - 1 + add) % 7; 
+        if (idx < 0) idx += 7;
+        return DayOfWeek.of(idx + 1);
+    }
+
+    private int toMinutes(java.time.LocalTime t) {
+        return t.getHour() * 60 + t.getMinute();
+    }
+
+        
+    private int layoverMinutesAcrossDays(Connection firstConn, Connection secondConn, DayOfWeek arrivalDay) {
+        int arrMin = toMinutes(firstConn.getArrivalTime());
+        java.util.Set<DayOfWeek> ops = parseDaysOfOperation(secondConn.getDaysOfOperation());
+        int depMin = toMinutes(secondConn.getDepartureTime());
+
+        for (int add = 0; add < 7; add++) {
+            DayOfWeek candidate = plusDays(arrivalDay, add);
+            if(!ops.contains(candidate)) continue;
+
+            if(add == 0) {
+                if(depMin >= arrMin) return depMin - arrMin;
+                continue;
+            } else {
+                return add * 24 * 60 + (depMin- arrMin);
+            }
+        }
+        
+        return Integer.MAX_VALUE / 4;
+    }
+
+    
+    private DayOfWeek arrivalDayFor(Connection conn, DayOfWeek departureDay) {
+        int add = conn.isNextDay() ? 1 : 0;
+        return plusDays(departureDay, add);
     }
 
     public static void main(String[] args) {
