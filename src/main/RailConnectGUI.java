@@ -2,6 +2,7 @@
 // Java standard library imports
 import java.io.File;
 import java.util.List;
+import java.util.Comparator;
 
 // JavaFX imports
 import javafx.application.Application;
@@ -31,11 +32,12 @@ public class RailConnectGUI extends Application {
     // Search fields
     private TextField depCityField;
     private TextField arrCityField;
-    private TextField depTimeField; // NEW: Departure time
-    private TextField arrTimeField; // NEW: Arrival time
-    private TextField trainTypeField; // NEW: User can type train type
-    private ComboBox<String> daysCombo; // NEW: Days dropdown
+    private TextField depTimeField;
+    private TextField arrTimeField;
+    private TextField trainTypeField;
     private CheckBox firstClassCheck;
+    private ComboBox<String> maxStopsCombo;
+    private ComboBox<String> sortCombo;
 
     // Day checkboxes
     private CheckBox mondayCheck;
@@ -85,17 +87,17 @@ public class RailConnectGUI extends Application {
         arrCityField = new TextField();
         arrCityField.setPromptText("e.g., Berlin");
 
-        // NEW: Departure Time
+        // Departure Time
         Label depTimeLabel = new Label("Earliest Departure (HH:MM):");
         depTimeField = new TextField();
         depTimeField.setPromptText("e.g., 09:00 (optional)");
 
-        // NEW: Arrival Time
+        // Arrival Time
         Label arrTimeLabel = new Label("Latest Arrival (HH:MM):");
         arrTimeField = new TextField();
         arrTimeField.setPromptText("e.g., 18:00 (optional)");
 
-        // NEW: Train Type (user can type)
+        // Train Type
         Label trainTypeLabel = new Label("Train Type:");
         trainTypeField = new TextField();
         trainTypeField.setPromptText("e.g., ICE, TGV (optional)");
@@ -127,8 +129,27 @@ public class RailConnectGUI extends Application {
                 mondayCheck, tuesdayCheck, wednesdayCheck, thursdayCheck,
                 fridayCheck, saturdayCheck, sundayCheck);
 
+        // Max Stops dropdown
+        Label maxStopsLabel = new Label("Max Stops:");
+        maxStopsCombo = new ComboBox<>();
+        maxStopsCombo.getItems().addAll(
+                "Max 0 Stops",
+                "Max 1 Stop",
+                "Max 2 Stops");
+        maxStopsCombo.setValue("Max 2 Stops");
+        maxStopsCombo.setMaxWidth(Double.MAX_VALUE);
+
         // First Class checkbox
         firstClassCheck = new CheckBox("First Class");
+
+        // Sort dropdown
+        Label sortLabel = new Label("Sort By:");
+        sortCombo = new ComboBox<>();
+        sortCombo.getItems().addAll(
+                "Sort by Duration",
+                "Sort by Price");
+        sortCombo.setValue("Sort by Duration");
+        sortCombo.setMaxWidth(Double.MAX_VALUE);
 
         // Search button
         Button searchButton = new Button("Search");
@@ -155,12 +176,21 @@ public class RailConnectGUI extends Application {
                 monFriCheck,
                 individualDaysLabel,
                 individualDaysBox,
+                maxStopsLabel, maxStopsCombo,
+                sortLabel, sortCombo,
                 new Label(" "), // Spacer
                 firstClassCheck,
                 new Label(" "), // Spacer
                 searchButton,
                 clearButton);
-        root.setLeft(searchPanel);
+
+        // Wrap search panel in a ScrollPane
+        ScrollPane searchScrollPane = new ScrollPane(searchPanel);
+        searchScrollPane.setFitToWidth(true);
+        searchScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        searchScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+        root.setLeft(searchScrollPane);
 
         // Center results
         VBox resultsPanel = new VBox(10);
@@ -226,8 +256,9 @@ public class RailConnectGUI extends Application {
         String arrTime = arrTimeField.getText().trim();
         String trainType = trainTypeField.getText().trim();
         boolean firstClass = firstClassCheck.isSelected();
+        String maxStops = maxStopsCombo.getValue();
 
-        // Build days filter from the checkboxes
+        // Build days filter from checkboxes
         StringBuilder daysBuilder = new StringBuilder();
         if (dailyCheck.isSelected()) {
             daysBuilder.append("Daily");
@@ -270,7 +301,15 @@ public class RailConnectGUI extends Application {
         try {
             statusLabel.setText("Searching...");
 
-            // Call search with all parameters (empty strings become null)
+            // Convert max stops selection to integer
+            int maxStopsCount = 2;
+            if (maxStops.equals("Max 0 Stops")) {
+                maxStopsCount = 0;
+            } else if (maxStops.equals("Max 1 Stop")) {
+                maxStopsCount = 1;
+            }
+
+            // Call search with all parameters
             List<Trip> trips = system.searchConnections(
                     depCity.isEmpty() ? null : depCity,
                     arrCity.isEmpty() ? null : arrCity,
@@ -278,7 +317,20 @@ public class RailConnectGUI extends Application {
                     arrTime.isEmpty() ? null : arrTime,
                     trainType.isEmpty() ? null : trainType,
                     days,
-                    firstClass, 2);
+                    firstClass,
+                    maxStopsCount);
+
+            // Sort trips based on selected option
+            String sortOption = sortCombo.getValue();
+            if (sortOption.equals("Sort by Duration")) {
+                trips.sort(Comparator.comparingInt(Trip::getTotalDurationMinutes));
+            } else if (sortOption.equals("Sort by Price")) {
+                trips.sort((trip1, trip2) -> {
+                    double price1 = firstClass ? trip1.getTotalFirstClassPrice() : trip1.getTotalSecondClassPrice();
+                    double price2 = firstClass ? trip2.getTotalFirstClassPrice() : trip2.getTotalSecondClassPrice();
+                    return Double.compare(price1, price2);
+                });
+            }
 
             // Display results
             showResults(trips);
@@ -327,7 +379,10 @@ public class RailConnectGUI extends Application {
 
                 sb.append("\nSegments:\n");
                 int segNum = 1;
-                for (Segment seg : trip.getSegments()) {
+                int totalTransferTime = 0;
+
+                for (int i = 0; i < trip.getSegments().size(); i++) {
+                    Segment seg = trip.getSegments().get(i);
                     Connection conn = seg.getConnection();
                     sb.append("  " + segNum + ". " + conn.getDepartureCity().getName() +
                             " → " + conn.getArrivalCity().getName() + "\n");
@@ -339,7 +394,22 @@ public class RailConnectGUI extends Application {
                     sb.append("     Train: " + conn.getTrain().getType() +
                             " | Days: " + conn.getDaysOfOperation() +
                             " | Duration: " + conn.getFormattedDuration() + "\n");
+
+                    // Calculate and display transfer time between segments
+                    if (i < trip.getSegments().size() - 1) {
+                        Segment nextSeg = trip.getSegments().get(i + 1);
+                        Connection nextConn = nextSeg.getConnection();
+
+                        int transferTime = calculateTransferTime(conn, nextConn);
+                        totalTransferTime += transferTime;
+                        sb.append("     Transfer time: " + formatDuration(transferTime) + "\n");
+                    }
+
                     segNum++;
+                }
+
+                if (totalTransferTime > 0) {
+                    sb.append("\nTotal transfer time: " + formatDuration(totalTransferTime) + "\n");
                 }
 
                 sb.append("\n───────────────────────────────────────────────────────────────────────────────\n\n");
@@ -366,9 +436,34 @@ public class RailConnectGUI extends Application {
         fridayCheck.setSelected(false);
         saturdayCheck.setSelected(false);
         sundayCheck.setSelected(false);
+        maxStopsCombo.setValue("Max 2 Stops");
+        sortCombo.setValue("Sort by Duration");
         firstClassCheck.setSelected(false);
         resultsArea.clear();
         statusLabel.setText("Ready. Enter search criteria.");
+    }
+
+    private int calculateTransferTime(Connection firstConn, Connection secondConn) {
+        int arrivalMinutes = firstConn.getArrivalTime().getHour() * 60 + firstConn.getArrivalTime().getMinute();
+        int departureMinutes = secondConn.getDepartureTime().getHour() * 60 + secondConn.getDepartureTime().getMinute();
+
+        // Handle next day scenarios
+        if (departureMinutes < arrivalMinutes) {
+            departureMinutes += 24 * 60;
+        }
+
+        return departureMinutes - arrivalMinutes;
+    }
+
+    private String formatDuration(int minutes) {
+        int hours = minutes / 60;
+        int mins = minutes % 60;
+
+        if (hours > 0) {
+            return hours + "h " + mins + "m";
+        } else {
+            return mins + "m";
+        }
     }
 
     public static void main(String[] args) {
