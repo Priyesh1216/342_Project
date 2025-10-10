@@ -245,6 +245,8 @@ public class RailwaySystem {
         return false;
     }
 
+    // parses selected days of the week
+    // turns day range to list of days
     private java.util.Set<java.time.DayOfWeek> parseDays(String raw) {
         java.util.Set<java.time.DayOfWeek> out = new java.util.HashSet<>();
         if (raw == null || raw.isBlank()) return out;

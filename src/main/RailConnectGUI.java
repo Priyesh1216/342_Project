@@ -474,18 +474,6 @@ public class RailConnectGUI extends Application {
         statusLabel.setText("Ready. Enter search criteria.");
     }
 
-    private int calculateTransferTime(Connection firstConn, Connection secondConn) {
-        int arrivalMinutes = firstConn.getArrivalTime().getHour() * 60 + firstConn.getArrivalTime().getMinute();
-        int departureMinutes = secondConn.getDepartureTime().getHour() * 60 + secondConn.getDepartureTime().getMinute();
-
-        // Handle next day scenarios
-        if (departureMinutes < arrivalMinutes) {
-            departureMinutes += 24 * 60;
-        }
-
-        return departureMinutes - arrivalMinutes;
-    }
-
     private String formatDuration(int minutes) {
         int hours = minutes / 60;
         int mins = minutes % 60;
@@ -497,7 +485,7 @@ public class RailConnectGUI extends Application {
         }
     }
 
-    
+    // creates a set of days from the day range
     private Set<DayOfWeek> parseDaysOfOperation(String daysOpRaw) {
         Set<DayOfWeek> out = new HashSet<>();
         if (daysOpRaw == null || daysOpRaw.isBlank()) return out;
@@ -535,9 +523,9 @@ public class RailConnectGUI extends Application {
         return out;
     }
 
-    private DayOfWeek parseDayToken(String tokRaw) {
-        if (tokRaw == null) return null;
-        switch (tokRaw.substring(0, 3)) {
+    private DayOfWeek parseDayToken(String tokenRaw) {
+        if (tokenRaw == null) return null;
+        switch (tokenRaw.substring(0, 3)) {
             case "mon": return DayOfWeek.MONDAY;
             case "tue": return DayOfWeek.TUESDAY;
             case "wed": return DayOfWeek.WEDNESDAY;
@@ -549,6 +537,7 @@ public class RailConnectGUI extends Application {
         }
     }
 
+    // adds days between two days inclusive
     private void addInclusiveRange(Set<DayOfWeek> out, DayOfWeek start, DayOfWeek end) {
         int i = start.getValue() - 1;
         int j = end.getValue() - 1;
@@ -558,7 +547,6 @@ public class RailConnectGUI extends Application {
             if (idx == j) break;
         }
     }
-
 
     private DayOfWeek plusDays(DayOfWeek d, int add) {
         int idx = (d.getValue() - 1 + add) % 7; 
