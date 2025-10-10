@@ -88,7 +88,7 @@ public class RailwaySystem {
     }
 
     public List<Trip> searchConnections(String depCity, String arrCity, String depTime, String arrTime,
-            String trainType, String daysOp, boolean firstClass) {
+            String trainType, String daysOp, boolean firstClass, int maxStops) {
         List<Trip> allTrips = new ArrayList<>();
 
         // Parse the time into minutes
@@ -110,14 +110,18 @@ public class RailwaySystem {
         // Make sure that both the arrival and departure cities are filled in because
         // otherwise there will be too many combinations
         if (depCity != null && !depCity.trim().isEmpty() && arrCity != null && !arrCity.trim().isEmpty()) {
+            if (maxStops >= 1) {
             List<Trip> oneStopTrips = findOneStopTrips(depCity, arrCity, depTimeMinutes, arrTimeMinutes,
                     trainType, daysOp, firstClass);
             allTrips.addAll(oneStopTrips);
+        }
 
+        if (maxStops >= 2) {
             List<Trip> twoStopTrips = findTwoStopTrips(depCity, arrCity, depTimeMinutes, arrTimeMinutes,
-                    trainType, daysOp, firstClass);
+                    trainType, daysOp, firstClass, directConnections);
             allTrips.addAll(twoStopTrips);
         }
+    }
 
         return allTrips;
     }
@@ -127,18 +131,61 @@ public class RailwaySystem {
         List<Trip> trips = new ArrayList<>();
 
         // Find all first legs departing from origin
-        List<Connection> firstSegment = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+            
+        for(Connection firstSegment : firstSegments){
+            List<Connection> secondSegments = connections.findMatching(firstSegment.getArrivalCity().getName(), arrCity, null, arrTime, trainType, daysOp);
 
+            for (Connection secondSegment : secondSegments){
+                int transferTime = calculateTransferTime(firstSegment, secondSegment);
+                Trip trip = new Trip();
+                trip.addSegment(new Segment(firstSegment));
+                trip.addSegment(new Segment(secondSegment));
+
+                
+                trip.computeTotals(firstClass, transferTime);
+                trips.add(trip);
+            }
+        }
         return trips;
     }
 
     private List<Trip> findTwoStopTrips(String depCity, String arrCity, Integer depTime, Integer arrTime,
-            String trainType, String daysOp, boolean firstClass) {
+            String trainType, String daysOp, boolean firstClass, List<Connection> directConnections) {
         List<Trip> trips = new ArrayList<>();
 
         // Find all first legs departing from origin
-        List<Connection> firstSegment = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        for(Connection firstSegment : firstSegments){
 
+            if(isDirectConnection(firstSegment, directConnections)){
+                continue;
+            }
+            List<Connection> secondSegments = connections.findMatching(firstSegment.getArrivalCity().getName(), null, null, null, trainType, daysOp);
+
+            for (Connection secondSegment : secondSegments){
+
+                if(isDirectConnection(secondSegment, directConnections)){
+                    continue;
+                }
+                List<Connection> thirdSegments = connections.findMatching(secondSegment.getArrivalCity().getName(), arrCity, null, arrTime, trainType, daysOp);
+                for(Connection thirdSegment:thirdSegments){
+                    if(isDirectConnection(thirdSegment, directConnections)){
+                        continue;
+                    }
+                    int transferTime1 = calculateTransferTime(firstSegment, secondSegment);
+                    int transferTime2 = calculateTransferTime(secondSegment, thirdSegment);
+
+                    Trip trip = new Trip();
+                    trip.addSegment(new Segment(firstSegment));
+                    trip.addSegment(new Segment(secondSegment));
+                    trip.addSegment(new Segment(thirdSegment));
+
+                    trip.computeTotals(firstClass, transferTime1 + transferTime2);
+                    trips.add(trip);
+                }
+            }
+        }
         return trips;
     }
 
@@ -158,7 +205,28 @@ public class RailwaySystem {
         }
     }
 
+    private int calculateTransferTime(Connection firstSegment, Connection secondSegment){
+        int arrivalMinutes = firstSegment.getArrivalTime().getHour() * 60 + firstSegment.getArrivalTime().getMinute();
+        int departureMinutes = secondSegment.getArrivalTime().getHour() * 60 + secondSegment.getArrivalTime().getMinute();
+
+        if(departureMinutes < arrivalMinutes) {
+            departureMinutes += 24*60;
+        }
+        return departureMinutes - arrivalMinutes;
+    }
     public int getConnectionCount() {
         return connections.getCount();
     }
+
+    private boolean isDirectConnection(Connection conn, List<Connection> directConnections) {
+    for (Connection directConn : directConnections) {
+        if (conn.getDepartureCity().equals(directConn.getDepartureCity()) &&
+            conn.getArrivalCity().equals(directConn.getArrivalCity()) &&
+            conn.getDepartureTime().equals(directConn.getDepartureTime()) &&
+            conn.getArrivalTime().equals(directConn.getArrivalTime())) {
+            return true; 
+        }
+    }
+    return false; 
+}
 }

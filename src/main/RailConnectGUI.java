@@ -35,7 +35,8 @@ public class RailConnectGUI extends Application {
     private TextField trainTypeField; // NEW: User can type train type
     private ComboBox<String> daysCombo; // NEW: Days dropdown
     private CheckBox firstClassCheck;
-
+    private ComboBox<String> maxStopsCombo;
+    
     // Results area
     private TextArea resultsArea;
 
@@ -105,9 +106,19 @@ public class RailConnectGUI extends Application {
         daysCombo.setValue("Any");
         daysCombo.setMaxWidth(Double.MAX_VALUE);
 
+        Label maxStopsLabel = new Label("Max Stops:");
+        maxStopsCombo = new ComboBox<>();
+        maxStopsCombo.getItems().addAll(
+            "Max 0 Stops",
+            "Max 1 Stop",
+            "Max 2 Stops"
+        );
+        maxStopsCombo.setValue("Max 2 Stops");
+        maxStopsCombo.setMaxWidth(Double.MAX_VALUE);
+
         // First Class checkbox
         firstClassCheck = new CheckBox("First Class");
-
+       
         // Search button
         Button searchButton = new Button("Search");
         searchButton.setMaxWidth(Double.MAX_VALUE);
@@ -129,6 +140,7 @@ public class RailConnectGUI extends Application {
                 arrTimeLabel, arrTimeField,
                 trainTypeLabel, trainTypeField,
                 daysLabel, daysCombo,
+                maxStopsLabel, maxStopsCombo,
                 new Label(" "), // Spacer
                 firstClassCheck,
                 new Label(" "), // Spacer
@@ -201,7 +213,7 @@ public class RailConnectGUI extends Application {
         String trainType = trainTypeField.getText().trim();
         String days = daysCombo.getValue();
         boolean firstClass = firstClassCheck.isSelected();
-
+        String maxStops = maxStopsCombo.getValue();
         // Validate: at least one city must be entered
         if (depCity.isEmpty() && arrCity.isEmpty()) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -216,7 +228,12 @@ public class RailConnectGUI extends Application {
 
             // Convert "Any" to null for no filter
             String daysFilter = days.equals("Any") ? null : days;
-
+            int maxStopsCount = 2;  
+            if (maxStops.equals("Max 0 Stops")) {
+                maxStopsCount = 0;
+            } else if (maxStops.equals("Max 1 Stop")) {
+                maxStopsCount = 1;
+            }
             // Call search with all parameters (empty strings become null)
             List<Trip> trips = system.searchConnections(
                     depCity.isEmpty() ? null : depCity,
@@ -225,7 +242,7 @@ public class RailConnectGUI extends Application {
                     arrTime.isEmpty() ? null : arrTime,
                     trainType.isEmpty() ? null : trainType,
                     daysFilter,
-                    firstClass);
+                    firstClass, maxStopsCount);
 
             // Display results
             showResults(trips);
@@ -274,21 +291,38 @@ public class RailConnectGUI extends Application {
 
                 sb.append("\nSegments:\n");
                 int segNum = 1;
-                for (Segment seg : trip.getSegments()) {
-                    Connection conn = seg.getConnection();
-                    sb.append("  " + segNum + ". " + conn.getDepartureCity().getName() +
-                            " → " + conn.getArrivalCity().getName() + "\n");
-                    sb.append("     " + conn.getDepartureTime() + " - " + conn.getArrivalTime());
-                    if (conn.isNextDay()) {
-                        sb.append(" (+1d)");
-                    }
-                    sb.append("\n");
-                    sb.append("     Train: " + conn.getTrain().getType() +
-                            " | Days: " + conn.getDaysOfOperation() +
-                            " | Duration: " + conn.getFormattedDuration() + "\n");
-                    segNum++;
+                int totalTransferTime = 0;
+
+                for (int i = 0; i < trip.getSegments().size(); i++) {
+                Segment seg = trip.getSegments().get(i);
+                Connection conn = seg.getConnection();
+                sb.append("  " + segNum + ". " + conn.getDepartureCity().getName() +
+                        " → " + conn.getArrivalCity().getName() + "\n");
+                sb.append("     " + conn.getDepartureTime() + " - " + conn.getArrivalTime());
+                if (conn.isNextDay()) {
+                    sb.append(" (+1d)");
+                }
+                sb.append("\n");
+                sb.append("     Train: " + conn.getTrain().getType() +
+                        " | Days: " + conn.getDaysOfOperation() +
+                        " | Duration: " + conn.getFormattedDuration() + "\n");
+
+                // Calculate and show the transfer time between this segment and the next segment
+                if (i < trip.getSegments().size() - 1) { // Check if there is a next segment
+                    Segment nextSeg = trip.getSegments().get(i + 1);
+                    Connection nextConn = nextSeg.getConnection();
+
+                    int transferTime = calculateTransferTime(conn, nextConn);
+                    totalTransferTime += transferTime; // Add transfer time to the total
+                    sb.append("     Time to change: " + formatDuration(transferTime) + "\n");
                 }
 
+                            
+                    segNum++;
+                }
+                if (totalTransferTime > 0) {
+                sb.append("\nTotal transfer time: " + formatDuration(totalTransferTime) + "\n");
+            }
                 sb.append("\n───────────────────────────────────────────────────────────────────────────────\n\n");
                 num++;
             }
@@ -309,6 +343,30 @@ public class RailConnectGUI extends Application {
         resultsArea.clear();
         statusLabel.setText("Ready. Enter search criteria.");
     }
+    private int calculateTransferTime(Connection firstConn, Connection secondConn) {
+    // Convert both times to minutes for easy calculation
+    int arrivalMinutes = firstConn.getArrivalTime().getHour() * 60 + firstConn.getArrivalTime().getMinute();
+    int departureMinutes = secondConn.getDepartureTime().getHour() * 60 + secondConn.getDepartureTime().getMinute();
+
+    // If the departure time is earlier than the arrival time (i.e., next day), add 24 hours (1440 minutes)
+    if (departureMinutes < arrivalMinutes) {
+        departureMinutes += 24 * 60; // Add 24 hours to the departure time
+    }
+    
+    return departureMinutes - arrivalMinutes; // Return the difference in minutes
+}
+
+// Helper method to format the duration (minutes to hours and minutes)
+private String formatDuration(int minutes) {
+    int hours = minutes / 60;
+    int mins = minutes % 60;
+
+    if (hours > 0) {
+        return hours + "h " + mins + "m";
+    } else {
+        return mins + "m";
+    }
+}
 
     public static void main(String[] args) {
         launch(args);
