@@ -2,6 +2,7 @@
 // Java standard library imports
 import java.io.File;
 import java.util.List;
+import java.util.Comparator;
 
 // JavaFX imports
 import javafx.application.Application;
@@ -36,7 +37,7 @@ public class RailConnectGUI extends Application {
     private ComboBox<String> daysCombo; // NEW: Days dropdown
     private CheckBox firstClassCheck;
     private ComboBox<String> maxStopsCombo;
-    
+    private ComboBox<String> sortCombo;
     // Results area
     private TextArea resultsArea;
 
@@ -119,6 +120,13 @@ public class RailConnectGUI extends Application {
         // First Class checkbox
         firstClassCheck = new CheckBox("First Class");
        
+        Label sortLabel = new Label("Sort By:");
+        sortCombo = new ComboBox<>();
+        sortCombo.getItems().addAll(
+            "Sort by Duration",
+            "Sort by Price");
+        sortCombo.setValue("Sort by Duration");
+        sortCombo.setMaxWidth(Double.MAX_VALUE);
         // Search button
         Button searchButton = new Button("Search");
         searchButton.setMaxWidth(Double.MAX_VALUE);
@@ -141,6 +149,7 @@ public class RailConnectGUI extends Application {
                 trainTypeLabel, trainTypeField,
                 daysLabel, daysCombo,
                 maxStopsLabel, maxStopsCombo,
+                sortLabel, sortCombo,
                 new Label(" "), // Spacer
                 firstClassCheck,
                 new Label(" "), // Spacer
@@ -234,7 +243,7 @@ public class RailConnectGUI extends Application {
             } else if (maxStops.equals("Max 1 Stop")) {
                 maxStopsCount = 1;
             }
-            // Call search with all parameters (empty strings become null)
+            
             List<Trip> trips = system.searchConnections(
                     depCity.isEmpty() ? null : depCity,
                     arrCity.isEmpty() ? null : arrCity,
@@ -243,7 +252,17 @@ public class RailConnectGUI extends Application {
                     trainType.isEmpty() ? null : trainType,
                     daysFilter,
                     firstClass, maxStopsCount);
+            String sortOption = sortCombo.getValue();
 
+            if (sortOption.equals("Sort by Duration")) {
+            trips.sort(Comparator.comparingInt(Trip::getTotalDurationMinutes));  
+        } else if (sortOption.equals("Sort by Price")) {
+            trips.sort((trip1, trip2) -> {
+                double price1 = firstClass ? trip1.getTotalFirstClassPrice() : trip1.getTotalSecondClassPrice();
+                double price2 = firstClass ? trip2.getTotalFirstClassPrice() : trip2.getTotalSecondClassPrice();
+                return Double.compare(price1, price2);  
+            }); 
+        }
             // Display results
             showResults(trips);
             statusLabel.setText("Found " + trips.size() + " trip(s)");
@@ -307,13 +326,13 @@ public class RailConnectGUI extends Application {
                         " | Days: " + conn.getDaysOfOperation() +
                         " | Duration: " + conn.getFormattedDuration() + "\n");
 
-                // Calculate and show the transfer time between this segment and the next segment
-                if (i < trip.getSegments().size() - 1) { // Check if there is a next segment
+                
+                if (i < trip.getSegments().size() - 1) { 
                     Segment nextSeg = trip.getSegments().get(i + 1);
                     Connection nextConn = nextSeg.getConnection();
 
                     int transferTime = calculateTransferTime(conn, nextConn);
-                    totalTransferTime += transferTime; // Add transfer time to the total
+                    totalTransferTime += transferTime;
                     sb.append("     Time to change: " + formatDuration(transferTime) + "\n");
                 }
 
@@ -344,16 +363,16 @@ public class RailConnectGUI extends Application {
         statusLabel.setText("Ready. Enter search criteria.");
     }
     private int calculateTransferTime(Connection firstConn, Connection secondConn) {
-    // Convert both times to minutes for easy calculation
+   
     int arrivalMinutes = firstConn.getArrivalTime().getHour() * 60 + firstConn.getArrivalTime().getMinute();
     int departureMinutes = secondConn.getDepartureTime().getHour() * 60 + secondConn.getDepartureTime().getMinute();
 
-    // If the departure time is earlier than the arrival time (i.e., next day), add 24 hours (1440 minutes)
+    
     if (departureMinutes < arrivalMinutes) {
-        departureMinutes += 24 * 60; // Add 24 hours to the departure time
+        departureMinutes += 24 * 60; 
     }
     
-    return departureMinutes - arrivalMinutes; // Return the difference in minutes
+    return departureMinutes - arrivalMinutes; 
 }
 
 // Helper method to format the duration (minutes to hours and minutes)
