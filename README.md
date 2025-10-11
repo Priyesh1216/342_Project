@@ -11,7 +11,8 @@
 ## How to run
 
 1. Check your Java version in the terminal with `java -version`
-2. If JavaFX is not already installed
+2. Ensure the the IDE is using the UTF-8 encoding.
+3. If JavaFX is not already installed
    - Download JavaFX SDK from: https://gluonhq.com/products/javafx/ (choose a version that is lower than your current Java version)
    - Extract the zip file to a location on your computer
    - Note the path to the lib folder (example: C:\javafx-sdk-17\lib or /path/to/javafx-sdk-17/lib)
