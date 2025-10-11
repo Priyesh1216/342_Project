@@ -22,8 +22,11 @@
      **To run:** `java --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
 
 
-launch.json
-`{
+#### Create the following files if they don't exist:
+
+**`.vscode/launch.json`**
+```json
+{
     "version": "0.2.0",
     "configurations": [
         {
@@ -37,12 +40,14 @@ launch.json
         }
     ]
 }
-`
+```
 
-settings.json
-`{
+**`.vscode/settings.json`**
+```json
+{
     "java.project.referencedLibraries": [
         "FILE_PATH/*.jar"
     ]
 }
-`
+```
+
