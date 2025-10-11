@@ -117,7 +117,7 @@ public class Connections {
 
     private boolean daysMatch(String connectionDays, String filterDays) {
         if (connectionDays == null || filterDays == null) {
-            return true; // No filter applied
+            return true;
         }
 
         String connDays = connectionDays.trim();
@@ -128,21 +128,197 @@ public class Connections {
             return true;
         }
 
+        // If filter is "Daily", only match Daily connections
+        if (filter.equalsIgnoreCase("Daily")) {
+            return connDays.equalsIgnoreCase("Daily");
+        }
+
+        // Expand any day ranges in connection days (e.g., "Fri-Sun" →
+        // "Friday,Saturday,Sunday")
+        String expandedConnDays = expandDayRanges(connDays);
+
+        // Handle "Monday-Friday" filter from GUI
+        if (filter.equalsIgnoreCase("Monday-Friday")) {
+            // Match if connection is Daily, Mon-Fri, or any weekday
+            if (connDays.equalsIgnoreCase("Daily") || connDays.equalsIgnoreCase("Mon-Fri")) {
+                return true;
+            }
+            // Check if expanded connection days contain any weekday
+            String[] expandedDays = expandedConnDays.split(",");
+            for (String day : expandedDays) {
+                String normalized = normalizeDayName(day.trim());
+                if (normalized.equals("Monday") || normalized.equals("Tuesday") ||
+                        normalized.equals("Wednesday") || normalized.equals("Thursday") ||
+                        normalized.equals("Friday")) {
+                    return true;
+                }
+            }
+        }
+
         // Exact match
         if (connDays.equalsIgnoreCase(filter)) {
             return true;
         }
 
-        // "Mon-Fri" connections match individual weekday filters
+        // Match "Mon-Fri" connection with individual weekdays or Mon-Fri filter
         if (connDays.equalsIgnoreCase("Mon-Fri")) {
-            if (filter.equalsIgnoreCase("Mon") || filter.equalsIgnoreCase("Tue") ||
-                    filter.equalsIgnoreCase("Wed") || filter.equalsIgnoreCase("Thu") ||
-                    filter.equalsIgnoreCase("Fri")) {
+            if (filter.equalsIgnoreCase("Mon-Fri") || filter.equalsIgnoreCase("Monday-Friday")) {
+                return true;
+            }
+            // Check against short and long day names
+            if (filter.equalsIgnoreCase("Mon") || filter.equalsIgnoreCase("Monday") ||
+                    filter.equalsIgnoreCase("Tue") || filter.equalsIgnoreCase("Tuesday") ||
+                    filter.equalsIgnoreCase("Wed") || filter.equalsIgnoreCase("Wednesday") ||
+                    filter.equalsIgnoreCase("Thu") || filter.equalsIgnoreCase("Thursday") ||
+                    filter.equalsIgnoreCase("Fri") || filter.equalsIgnoreCase("Friday")) {
                 return true;
             }
         }
 
+        // Check if filter has multiple days: comma-separated values taken from the GUI
+        // checkboxes)
+        if (filter.contains(",")) {
+            String[] filterDaysList = filter.split(",");
+            String[] expandedDaysList = expandedConnDays.split(",");
+
+            for (String filterDay : filterDaysList) {
+                for (String connDay : expandedDaysList) {
+                    if (dayNamesMatch(connDay.trim(), filterDay.trim())) {
+                        return true; // Found overlap = matching
+                    }
+                }
+            }
+        }
+
+        else {
+            // Single day filter - check against expanded connection days
+            String[] expandedDaysList = expandedConnDays.split(",");
+            for (String connDay : expandedDaysList) {
+                if (dayNamesMatch(connDay.trim(), filter)) {
+                    return true;
+                }
+            }
+        }
+
         return false; // No match
+    }
+
+    // Expand day ranges like "Fri-Sun" to Friday, Saturday, Sunday for example
+    private String expandDayRanges(String days) {
+        String trimmed = days.trim();
+
+        // Handle Mon-Fri - will expand to all weekdays
+        if (trimmed.equalsIgnoreCase("Mon-Fri") || trimmed.equalsIgnoreCase("Monday-Friday")) {
+            return "Monday,Tuesday,Wednesday,Thursday,Friday";
+        }
+
+        // If theres no hypen there is no range
+        if (!trimmed.contains("-")) {
+            return trimmed;
+        }
+
+        // Split on hyphen and trim each part should only give 2 parts
+        String[] parts = trimmed.split("-");
+        if (parts.length != 2) {
+            return trimmed; // Not valid
+        }
+
+        // Convert to full day names (so like Fri to Friday)
+        String startDay = normalizeDayName(parts[0].trim());
+        String endDay = normalizeDayName(parts[1].trim());
+
+        String[] weekDays = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+        int startIdx = -1;
+        int endIdx = -1;
+
+        for (int i = 0; i < weekDays.length; i++) {
+            if (weekDays[i].equalsIgnoreCase(startDay))
+                startIdx = i;
+            if (weekDays[i].equalsIgnoreCase(endDay))
+                endIdx = i;
+        }
+
+        StringBuilder result = new StringBuilder();
+        if (startIdx <= endIdx) {
+            // Normal range the start will come beofre the end in the week (Fri-Sun is
+            // Fri=4, Sun=6, so 4 <= 6)
+            for (int i = startIdx; i <= endIdx; i++) {
+                if (result.length() > 0)
+                    result.append(",");
+                result.append(weekDays[i]);
+            }
+        }
+
+        else {
+            // Wrap-around for day ranges like Friday-Monday (5 <= 0)
+
+            // Add days from start to the end of the week
+            for (int i = startIdx; i < weekDays.length; i++) {
+                if (result.length() > 0)
+                    result.append(",");
+                result.append(weekDays[i]);
+            }
+
+            // After that, add the days from the start of the week to the end day
+            for (int i = 0; i <= endIdx; i++) {
+                if (result.length() > 0)
+                    result.append(",");
+                result.append(weekDays[i]);
+            }
+        }
+
+        return result.toString();
+    }
+
+    // Match day names
+    private boolean dayNamesMatch(String day1, String day2) {
+        if (day1.equalsIgnoreCase(day2)) {
+            return true;
+        }
+
+        // Normalize to full day names to compare
+        String normalized1 = normalizeDayName(day1);
+        String normalized2 = normalizeDayName(day2);
+
+        return normalized1.equalsIgnoreCase(normalized2);
+    }
+
+    // Normalize day names to full names
+    private String normalizeDayName(String day) {
+        String d = day.trim().toLowerCase();
+
+        switch (d) {
+            case "mon":
+                return "Monday";
+            case "monday":
+                return "Monday";
+            case "tue":
+                return "Tuesday";
+            case "tuesday":
+                return "Tuesday";
+            case "wed":
+                return "Wednesday";
+            case "wednesday":
+                return "Wednesday";
+            case "thu":
+                return "Thursday";
+            case "thursday":
+                return "Thursday";
+            case "fri":
+                return "Friday";
+            case "friday":
+                return "Friday";
+            case "sat":
+                return "Saturday";
+            case "saturday":
+                return "Saturday";
+            case "sun":
+                return "Sunday";
+            case "sunday":
+                return "Sunday";
+            default:
+                return day;
+        }
     }
 
     public void clear() {
