@@ -15,8 +15,34 @@
 3. If JavaFX is not already installed
    - Download JavaFX SDK from: https://gluonhq.com/products/javafx/ (choose a version that is lower than your current Java version)
    - Extract the zip file to a location on your computer
-   - Note the path to the lib folder in the javafx-sdk folder (example: C:\javafx-sdk-17\lib or /path/to/javafx-sdk-17/lib)
-4. Change the FILE_PATH to the file path of you JavaFX lib folder in the launch.json and settings.json files.
+   - Note the path to the lib folder in the javafx-sdk folder (example: C:\javafx-sdk-17\lib or /path/to/javafx-sdk-17/lib
+4. Change the FILE_PATH to the file path of you JavaFX lib folder in the launch.json and settings.json files (see sample code below)
 5. Run the following commands in the main folder of the code (342_Project/src/main)<br>
      **To compile:** `javac -encoding UTF-8 --module-path "FILE_PATH" --add-modules javafx.controls *.java`<br>
      **To run:** `java --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
+
+
+launch.json
+`{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Launch RailConnectGUI",
+            "request": "launch",
+            "mainClass": "RailConnectGUI",
+            "projectName": "Railway_Connection_Search",
+            "vmArgs": "--module-path \"FILE_PATH\" --add-modules javafx.controls",
+            "encoding": "UTF-8"
+        }
+    ]
+}
+`
+
+settings.json
+`{
+    "java.project.referencedLibraries": [
+        "FILE_PATH/*.jar"
+    ]
+}
+`
