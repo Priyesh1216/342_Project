@@ -24,6 +24,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -750,32 +751,60 @@ public class RailConnectGUI extends Application {
         detailsStage.initModality(Modality.APPLICATION_MODAL);
         detailsStage.setTitle("Single Traveler - Passenger Details");
 
-        VBox mainLayout = new VBox(10);
-        mainLayout.setPadding(new Insets(20));
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setPadding(new Insets(20));
+        grid.setHgap(10);
+        grid.setVgap(10);
 
         Label titleLabel = new Label("Single Traveler Booking");
         titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        grid.add(titleLabel, 0, 0, 2, 1);
 
-        // Input fields
+        // First Name
         Label fnLabel = new Label("First Name:");
+        grid.add(fnLabel, 0, 1);
+
         TextField firstNameField = new TextField();
+        firstNameField.setPromptText("Enter first name");
+        firstNameField.setPrefWidth(250);
+        grid.add(firstNameField, 1, 1);
 
+        // Last Name
         Label lnLabel = new Label("Last Name:");
+        grid.add(lnLabel, 0, 2);
+
         TextField lastNameField = new TextField();
+        lastNameField.setPromptText("Enter last name");
+        lastNameField.setPrefWidth(250);
+        grid.add(lastNameField, 1, 2);
 
+        // Age
         Label ageLabel = new Label("Age:");
+        grid.add(ageLabel, 0, 3);
+
         TextField ageField = new TextField();
+        ageField.setPromptText("Enter age");
+        ageField.setPrefWidth(250);
+        grid.add(ageField, 1, 3);
 
+        // ID Number
         Label idLabel = new Label("ID Number:");
-        TextField idField = new TextField();
+        grid.add(idLabel, 0, 4);
 
+        TextField idField = new TextField();
+        idField.setPromptText("Enter ID number");
+        idField.setPrefWidth(250);
+        grid.add(idField, 1, 4);
+
+        // Price
         Label priceLabel = new Label("Total: €" + String.format("%.2f", price));
         priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        grid.add(priceLabel, 0, 5, 2, 1);
 
+        // Buttons
         Button confirmBtn = new Button("Confirm Booking");
         confirmBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;");
         confirmBtn.setOnAction(e -> {
-            // Validate fields
             String firstName = firstNameField.getText().trim();
             String lastName = lastNameField.getText().trim();
             String ageStr = ageField.getText().trim();
@@ -804,10 +833,7 @@ public class RailConnectGUI extends Application {
                 return;
             }
 
-            // Create client
             Client client = new Client(firstName, lastName, age, id);
-
-            // Create list with single client and process booking
             List<Client> clients = new java.util.ArrayList<>();
             clients.add(client);
 
@@ -823,23 +849,16 @@ public class RailConnectGUI extends Application {
             openBookingDialog();
         });
 
-        javafx.scene.layout.HBox buttonBox = new javafx.scene.layout.HBox(10);
+        HBox buttonBox = new HBox(10);
         buttonBox.getChildren().addAll(confirmBtn, backBtn);
+        grid.add(buttonBox, 0, 6, 2, 1);
 
-        mainLayout.getChildren().addAll(
-                titleLabel,
-                new Label(""),
-                fnLabel, firstNameField,
-                lnLabel, lastNameField,
-                ageLabel, ageField,
-                idLabel, idField,
-                new Label(""),
-                priceLabel,
-                buttonBox);
-
-        Scene scene = new Scene(mainLayout, 400, 450);
+        Scene scene = new Scene(grid, 450, 350);
         detailsStage.setScene(scene);
-        detailsStage.showAndWait();
+        detailsStage.show();
+
+        // Request focus after showing
+        firstNameField.requestFocus();
     }
 
     // For both single and multi
