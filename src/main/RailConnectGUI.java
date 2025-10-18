@@ -27,7 +27,9 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.scene.layout.HBox;
 
 public class RailConnectGUI extends Application {
     private RailwaySystem system;
@@ -59,8 +61,13 @@ public class RailConnectGUI extends Application {
     // Results area
     private TextArea resultsArea;
 
+    private Trip selectedTripForBooking;
+    private List<Trip> currentSearchResults;
+    private TripCollection tripCollection; // Collection for storing booked trips
+
     public void start(Stage primaryStage) {
         system = new RailwaySystem();
+        tripCollection = new TripCollection(); // Initialize the collection (container for booked trips)
 
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10));
@@ -139,12 +146,11 @@ public class RailConnectGUI extends Application {
         Label startDayLabel = new Label("Departing Day:");
         startDayCombo = new ComboBox<>();
         startDayCombo.getItems().addAll(
-            DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
-            DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
-        );
+                DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
         startDayCombo.setValue(DayOfWeek.MONDAY);
         startDayCombo.setMaxWidth(Double.MAX_VALUE);
-        
+
         // Max Stops dropdown
         Label maxStopsLabel = new Label("Max Stops:");
         maxStopsCombo = new ComboBox<>();
@@ -222,7 +228,57 @@ public class RailConnectGUI extends Application {
         resultsArea.setStyle("-fx-font-family: 'Courier New'; -fx-font-size: 12px;");
         VBox.setVgrow(resultsArea, Priority.ALWAYS);
 
-        resultsPanel.getChildren().addAll(resultsTitle, resultsArea);
+        // ADD BOOKING CONTROLS
+        javafx.scene.layout.HBox bookingControls = new javafx.scene.layout.HBox(10);
+        bookingControls.setPadding(new Insets(10, 0, 0, 0));
+
+        Label tripNumLabel = new Label("Trip #:");
+        TextField tripNumField = new TextField();
+        tripNumField.setPrefWidth(60);
+        tripNumField.setPromptText("1");
+
+        Button bookButton = new Button("Book This Trip");
+        bookButton.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;");
+        bookButton.setOnAction(e -> {
+            String tripNumStr = tripNumField.getText().trim();
+            if (tripNumStr.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setContentText("Please enter a trip number.");
+                alert.showAndWait();
+                return;
+            }
+
+            try {
+                int tripNum = Integer.parseInt(tripNumStr);
+                if (currentSearchResults == null || currentSearchResults.isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setContentText("No trips found. Please search first.");
+                    alert.showAndWait();
+                    return;
+                }
+
+                if (tripNum < 1 || tripNum > currentSearchResults.size()) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setContentText("Invalid trip number. Please enter a number between 1 and " +
+                            currentSearchResults.size());
+                    alert.showAndWait();
+                    return;
+                }
+
+                // Select the trip and open booking dialog
+                selectedTripForBooking = currentSearchResults.get(tripNum - 1);
+                openBookingDialog();
+
+            } catch (NumberFormatException ex) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setContentText("Please enter a valid number.");
+                alert.showAndWait();
+            }
+        });
+
+        bookingControls.getChildren().addAll(tripNumLabel, tripNumField, bookButton);
+
+        resultsPanel.getChildren().addAll(resultsTitle, resultsArea, bookingControls);
         root.setCenter(resultsPanel);
 
         // Bottom status
@@ -274,7 +330,6 @@ public class RailConnectGUI extends Application {
         String trainType = trainTypeField.getText().trim();
         boolean firstClass = firstClassCheck.isSelected();
         String maxStops = maxStopsCombo.getValue();
-        
 
         // Build days filter from checkboxes
         StringBuilder daysBuilder = new StringBuilder();
@@ -367,18 +422,22 @@ public class RailConnectGUI extends Application {
     }
 
     private void showResults(List<Trip> trips) {
-        StringBuilder sb = new StringBuilder();
+        this.currentSearchResults = trips;
+
+        // Clear the results area
+        resultsArea.clear();
 
         if (trips.isEmpty()) {
-            sb.append("No trips found matching the criteria.\n");
+            resultsArea.setText("No trips found matching the criteria.\n");
         } else {
+            StringBuilder sb = new StringBuilder();
             sb.append("═══════════════════════════════════════════════════════════════════════════════\n");
             sb.append(String.format("                    FOUND %d TRIP(S)\n", trips.size()));
             sb.append("═══════════════════════════════════════════════════════════════════════════════\n\n");
 
             int num = 1;
             for (Trip trip : trips) {
-                sb.append("TRIP #" + num);
+                sb.append("[TRIP #" + num + "]");
                 if (trip.getStopCount() == 0) {
                     sb.append(" - DIRECT\n");
                 } else if (trip.getStopCount() == 1) {
@@ -398,57 +457,13 @@ public class RailConnectGUI extends Application {
                             "Price: €" + String.format("%.2f", trip.getTotalSecondClassPrice()) + " (Second Class)\n");
                 }
 
-                sb.append("\nSegments:\n");
-                int segNum = 1;
-                int totalTransferTime = 0;
-                
-                DayOfWeek currentDepartureDay = (lastSelectedStartDay != null) ? lastSelectedStartDay : DayOfWeek.MONDAY;
-                for (int i = 0; i < trip.getSegments().size(); i++) {
-                    Segment seg = trip.getSegments().get(i);
-                    Connection conn = seg.getConnection();
-                    sb.append("  " + segNum + ". " + conn.getDepartureCity().getName() +
-                            " → " + conn.getArrivalCity().getName() + "\n");
-                    sb.append("     " + conn.getDepartureTime() + " - " + conn.getArrivalTime());
-                    if (conn.isNextDay()) {
-                        sb.append(" (+1d)");
-                    }
-                    sb.append("\n");
-                    sb.append("     Train: " + conn.getTrain().getType() +
-                            " | Days: " + conn.getDaysOfOperation() +
-                            " | Duration: " + conn.getFormattedDuration() + "\n");
-
-                    DayOfWeek currentArrivalDay = arrivalDayFor(conn, currentDepartureDay);
-                    // Calculate and display transfer time between segments
-                    if (i < trip.getSegments().size() - 1) {
-                        Segment nextSeg = trip.getSegments().get(i + 1);
-                        Connection nextConn = nextSeg.getConnection();
-
-                        int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
-                        totalTransferTime += transferTime;
-                        sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
-
-                        int arrMin = toMinutes(conn.getArrivalTime());
-                        int depMin = toMinutes(nextConn.getDepartureTime());
-                        int daysWaited = (transferTime + arrMin > depMin) ? ((transferTime + arrMin - depMin + (24 * 60 -1)) / (24*60)) : 0;
-                        DayOfWeek nextDepartureDay = plusDays(currentArrivalDay, daysWaited);
-
-                        currentDepartureDay = nextDepartureDay;
-                    }
-
-                    segNum++;
-                }
-
-                if (totalTransferTime > 0) {
-                    sb.append("\nTotal transfer time: " + formatDuration(totalTransferTime) + "\n");
-                }
-
                 sb.append("\n───────────────────────────────────────────────────────────────────────────────\n\n");
                 num++;
             }
-        }
 
-        resultsArea.setText(sb.toString());
-        resultsArea.positionCaret(0);
+            resultsArea.setText(sb.toString());
+            resultsArea.positionCaret(0);
+        }
     }
 
     private void clear() {
@@ -488,7 +503,8 @@ public class RailConnectGUI extends Application {
     // creates a set of days from the day range
     private Set<DayOfWeek> parseDaysOfOperation(String daysOpRaw) {
         Set<DayOfWeek> out = new HashSet<>();
-        if (daysOpRaw == null || daysOpRaw.isBlank()) return out;
+        if (daysOpRaw == null || daysOpRaw.isBlank())
+            return out;
 
         // Normalize common dash characters and lowercase everything
         String s = daysOpRaw.trim()
@@ -516,7 +532,8 @@ public class RailConnectGUI extends Application {
                 }
             } else {
                 DayOfWeek d = parseDayToken(token);
-                if (d != null) out.add(d);
+                if (d != null)
+                    out.add(d);
             }
         }
 
@@ -524,16 +541,25 @@ public class RailConnectGUI extends Application {
     }
 
     private DayOfWeek parseDayToken(String tokenRaw) {
-        if (tokenRaw == null) return null;
+        if (tokenRaw == null)
+            return null;
         switch (tokenRaw.substring(0, 3)) {
-            case "mon": return DayOfWeek.MONDAY;
-            case "tue": return DayOfWeek.TUESDAY;
-            case "wed": return DayOfWeek.WEDNESDAY;
-            case "thu": return DayOfWeek.THURSDAY;
-            case "fri": return DayOfWeek.FRIDAY;
-            case "sat": return DayOfWeek.SATURDAY;
-            case "sun": return DayOfWeek.SUNDAY;
-            default: return null;
+            case "mon":
+                return DayOfWeek.MONDAY;
+            case "tue":
+                return DayOfWeek.TUESDAY;
+            case "wed":
+                return DayOfWeek.WEDNESDAY;
+            case "thu":
+                return DayOfWeek.THURSDAY;
+            case "fri":
+                return DayOfWeek.FRIDAY;
+            case "sat":
+                return DayOfWeek.SATURDAY;
+            case "sun":
+                return DayOfWeek.SUNDAY;
+            default:
+                return null;
         }
     }
 
@@ -544,13 +570,15 @@ public class RailConnectGUI extends Application {
         for (int k = 0; k < 7; k++) {
             int idx = (i + k) % 7;
             out.add(DayOfWeek.of(idx + 1));
-            if (idx == j) break;
+            if (idx == j)
+                break;
         }
     }
 
     private DayOfWeek plusDays(DayOfWeek d, int add) {
-        int idx = (d.getValue() - 1 + add) % 7; 
-        if (idx < 0) idx += 7;
+        int idx = (d.getValue() - 1 + add) % 7;
+        if (idx < 0)
+            idx += 7;
         return DayOfWeek.of(idx + 1);
     }
 
@@ -558,7 +586,6 @@ public class RailConnectGUI extends Application {
         return t.getHour() * 60 + t.getMinute();
     }
 
-        
     private int layoverMinutesAcrossDays(Connection firstConn, Connection secondConn, DayOfWeek arrivalDay) {
         int arrMin = toMinutes(firstConn.getArrivalTime());
         java.util.Set<DayOfWeek> ops = parseDaysOfOperation(secondConn.getDaysOfOperation());
@@ -566,23 +593,167 @@ public class RailConnectGUI extends Application {
 
         for (int add = 0; add < 7; add++) {
             DayOfWeek candidate = plusDays(arrivalDay, add);
-            if(!ops.contains(candidate)) continue;
+            if (!ops.contains(candidate))
+                continue;
 
-            if(add == 0) {
-                if(depMin >= arrMin) return depMin - arrMin;
+            if (add == 0) {
+                if (depMin >= arrMin)
+                    return depMin - arrMin;
                 continue;
             } else {
-                return add * 24 * 60 + (depMin- arrMin);
+                return add * 24 * 60 + (depMin - arrMin);
             }
         }
-        
+
         return Integer.MAX_VALUE / 4;
     }
 
-    
     private DayOfWeek arrivalDayFor(Connection conn, DayOfWeek departureDay) {
         int add = conn.isNextDay() ? 1 : 0;
         return plusDays(departureDay, add);
+    }
+
+    private void openBookingDialog() {
+        Stage bookingStage = new Stage();
+        bookingStage.initModality(Modality.APPLICATION_MODAL);
+        bookingStage.setTitle("Book Trip");
+
+        VBox mainLayout = new VBox(15);
+        mainLayout.setPadding(new Insets(20));
+
+        // Trip info
+        Label tripInfo = new Label("Booking: " + selectedTripForBooking.getDepartureCity() +
+                " → " + selectedTripForBooking.getArrivalCity());
+        tripInfo.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        double price = firstClassCheck.isSelected() ? selectedTripForBooking.getTotalFirstClassPrice()
+                : selectedTripForBooking.getTotalSecondClassPrice();
+
+        Label priceLabel = new Label("Price: €" + String.format("%.2f", price));
+
+        Button continueBtn = new Button("Continue");
+        continueBtn.setOnAction(e -> {
+            bookingStage.close();
+            openPassengerDetailsDialog(price);
+        });
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.setOnAction(e -> bookingStage.close());
+
+        mainLayout.getChildren().addAll(tripInfo, priceLabel, continueBtn, cancelBtn);
+
+        Scene scene = new Scene(mainLayout, 400, 200);
+        bookingStage.setScene(scene);
+        bookingStage.showAndWait();
+    }
+
+    private void openPassengerDetailsDialog(double price) {
+        Stage detailsStage = new Stage();
+        detailsStage.initModality(Modality.APPLICATION_MODAL);
+        detailsStage.setTitle("Passenger Details");
+
+        VBox mainLayout = new VBox(10);
+        mainLayout.setPadding(new Insets(20));
+
+        // Input fields
+        Label fnLabel = new Label("First Name:");
+        TextField firstNameField = new TextField();
+
+        Label lnLabel = new Label("Last Name:");
+        TextField lastNameField = new TextField();
+
+        Label ageLabel = new Label("Age:");
+        TextField ageField = new TextField();
+
+        Label idLabel = new Label("ID Number:");
+        TextField idField = new TextField();
+
+        Label priceLabel = new Label("Total: €" + String.format("%.2f", price));
+        priceLabel.setStyle("-fx-font-weight: bold;");
+
+        Button confirmBtn = new Button("Confirm Booking");
+        confirmBtn.setOnAction(e -> {
+            if (processBooking(firstNameField, lastNameField, ageField, idField, detailsStage)) {
+                detailsStage.close();
+            }
+        });
+
+        Button backBtn = new Button("Back");
+        backBtn.setOnAction(e -> {
+            detailsStage.close();
+            openBookingDialog();
+        });
+
+        mainLayout.getChildren().addAll(
+                fnLabel, firstNameField,
+                lnLabel, lastNameField,
+                ageLabel, ageField,
+                idLabel, idField,
+                priceLabel,
+                confirmBtn, backBtn);
+
+        Scene scene = new Scene(mainLayout, 400, 400);
+        detailsStage.setScene(scene);
+        detailsStage.showAndWait();
+    }
+
+    private boolean processBooking(TextField firstNameField, TextField lastNameField,
+            TextField ageField, TextField idField, Stage detailsStage) {
+        // Validate
+        String firstName = firstNameField.getText().trim();
+        String lastName = lastNameField.getText().trim();
+        String ageStr = ageField.getText().trim();
+        String id = idField.getText().trim();
+
+        if (firstName.isEmpty() || lastName.isEmpty() || ageStr.isEmpty() || id.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Please fill in all fields.");
+            alert.showAndWait();
+            return false;
+        }
+
+        int age;
+        try {
+            age = Integer.parseInt(ageStr);
+            if (age <= 0 || age > 150) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setContentText("Please enter a valid age.");
+                alert.showAndWait();
+                return false;
+            }
+        } catch (NumberFormatException e) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Please enter a valid number for age.");
+            alert.showAndWait();
+            return false;
+        }
+
+        // Create client
+        Client client = new Client(firstName, lastName, age, id);
+
+        // Book the trip
+        BookedTrip bookedTrip = SingleTravelerBooking.bookSingleTraveler(
+                client,
+                selectedTripForBooking,
+                firstClassCheck.isSelected(),
+                tripCollection);
+
+        if (bookedTrip != null) {
+            // Show confirmation
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Booking Confirmed");
+            alert.setContentText("Booking successful!\n" +
+                    "Trip ID: " + bookedTrip.getTripId() + "\n" +
+                    "Passenger: " + client.getFullName() + "\n" +
+                    "Total: €" + String.format("%.2f", bookedTrip.getTotalPrice()));
+            alert.showAndWait();
+            return true;
+        } else {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Booking failed. Please try again.");
+            alert.showAndWait();
+            return false;
+        }
     }
 
     public static void main(String[] args) {
