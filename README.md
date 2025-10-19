@@ -22,7 +22,7 @@
      **To run:** `java --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
 
 
-#### Create the following files if they don't exist:
+#### Create the following files in the rooot of the project if they don't exist:
 
 **`.vscode/launch.json`**
 ```json
