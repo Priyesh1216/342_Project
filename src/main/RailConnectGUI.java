@@ -934,11 +934,18 @@ public class RailConnectGUI extends Application {
         return bookedTrip;
     }
 
-    // TO BE IMPLEMENENTED
+    private void showAlert(String message){
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
     private void openMultipleTravelersDialog(double pricePerPerson) {
         Stage multiStage = new Stage();
         multiStage.initModality(Modality.APPLICATION_MODAL);
-        multiStage.setTitle("Multiple Travelers");
+        multiStage.setTitle("Multiple Travelers Booking");
 
         VBox mainLayout = new VBox(20);
         mainLayout.setPadding(new Insets(30));
@@ -946,20 +953,128 @@ public class RailConnectGUI extends Application {
         Label titleLabel = new Label("Multiple Travelers Booking");
         titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        Label infoLabel = new Label("To be implemented");
+        Label infoLabel = new Label("Enter infromation for each traveler (2-10 people): ");
         infoLabel.setStyle("-fx-font-size: 14px;");
 
-        Button okBtn = new Button("OK");
-        okBtn.setOnAction(e -> {
+        HBox countBox = new HBox(10);
+        Label countLabel = new Label("Number of Travelers: ");
+        TextField countField = new TextField();
+        countField.setPromptText("e.g. 4");
+        countField.setPrefWidth(60);
+        Button generateBtn = new Button("Generate Fields");
+        countBox.getChildren().addAll(countLabel, countField, generateBtn);
+
+        VBox travelersBox = new VBox(15);
+        ScrollPane scrollPane = new ScrollPane(travelersBox);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(250);
+
+        HBox bottomButtons = new HBox(10);
+        Button confirmBtn = new Button("Confirm Booking");
+        confirmBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold");
+        Button cancelBtn = new Button("Cancel");
+        bottomButtons.getChildren().addAll(confirmBtn, cancelBtn);
+
+        generateBtn.setOnAction(e -> {
+            travelersBox.getChildren().clear();
+            String countStr = countField.getText().trim();
+            int count;
+            try{
+                count = Integer.parseInt(countStr);
+                if(count < 2 || count > 10){
+                    showAlert("Please enter a number between 2 and 10 travellers.");
+                    return;
+                }
+            } catch (NumberFormatException ex){
+                showAlert("Invalid number of travelers.");
+                return;
+            }
+
+            for(int i = 1; i <= count; i++){
+                VBox travelerForm = new VBox(5);
+                travelerForm.setStyle("-fx-border-color:#ccc; -fx-border-width: 1; -fx-padding:10;");
+                Label travelerTitle = new Label("Traveler " + i);
+                travelerTitle.setStyle("-fx-font-weight: bold;");
+
+                TextField fnField = new TextField();
+                fnField.setPromptText("First Name");
+
+                TextField lnField = new TextField();
+                lnField.setPromptText("Last Name");
+
+                TextField ageField = new TextField();
+                ageField.setPromptText("Age");
+
+                TextField idField = new TextField();
+                idField.setPromptText("ID Number");
+
+                travelerForm.getChildren().addAll(travelerTitle, fnField, lnField, ageField, idField);
+                travelersBox.getChildren().add(travelerForm);
+            }
+        });
+
+        confirmBtn.setOnAction(e -> {
+            List<Client> clients = new java.util.ArrayList<>();
+
+            for(javafx.scene.Node node : travelersBox.getChildren()){
+                if(node instanceof VBox travelerForm){
+                    List<TextField> fields = travelerForm.getChildren()
+                    .stream()
+                    .filter(n -> n instanceof TextField)
+                    .map(n -> (TextField) n)
+                    .toList();
+
+                    if(fields.size() != 4) continue;
+                    String fn = fields.get(0).getText().trim();
+                    String ln = fields.get(1).getText().trim();
+                    String ageStr = fields.get(2).getText().trim();
+                    String id = fields.get(3).getText().trim();
+
+                    if(fn.isEmpty() || ln.isEmpty() || ageStr.isEmpty() || id.isEmpty()){
+                        showAlert("Please fill in all fields for all travelers.");
+                        return;
+                    }
+
+                    int age;
+                    try{
+                        age = Integer.parseInt(ageStr);
+                        if(age <= 0 || age > 150) {
+                            showAlert("Please enter a valid age (1-150).");
+                            return;
+                        }
+                    } catch(NumberFormatException ex){
+                        showAlert("Invalid age for " + fn +" " + ln);
+                        return;
+                    }
+
+                    clients.add(new Client(fn, ln, age, id));
+                }
+            }
+
+            if(clients.isEmpty()){
+                showAlert("No traveler data entered");
+                return;
+            }
+
+            BookedTrip result = processBooking(clients);
+            if(result != null) {
+                multiStage.close();
+            }
+        });
+
+        cancelBtn.setOnAction(e -> {
             multiStage.close();
             openBookingDialog();
         });
 
-        mainLayout.getChildren().addAll(titleLabel, infoLabel, okBtn);
+        Label priceLabel = new Label("Price per traveler: €" + String.format("%.2f", pricePerPerson));
+        priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
 
-        Scene scene = new Scene(mainLayout, 500, 350);
+        mainLayout.getChildren().addAll(titleLabel, infoLabel, countBox, scrollPane, priceLabel, bottomButtons);
+        Scene scene = new Scene(mainLayout, 500, 600);
         multiStage.setScene(scene);
-        multiStage.showAndWait();
+        multiStage.initModality(Modality.APPLICATION_MODAL);
+        multiStage.show();
     }
 
     public static void main(String[] args) {
