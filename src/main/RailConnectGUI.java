@@ -66,8 +66,9 @@ public class RailConnectGUI extends Application {
     private TripCollection tripCollection; // Collection for storing booked trips
 
     public void start(Stage primaryStage) {
-        system = new RailwaySystem();
-        tripCollection = new TripCollection(); // Initialize the collection (container for booked trips)
+        tripCollection = new TripCollection(); 
+        system = new RailwaySystem(tripCollection);
+        // Initialize the collection (container for booked trips)
 
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10));
@@ -78,6 +79,9 @@ public class RailConnectGUI extends Application {
         MenuItem loadItem = new MenuItem("Load CSV...");
         loadItem.setOnAction(e -> loadFile(primaryStage));
         fileMenu.getItems().add(loadItem);
+        MenuItem viewTripsItem = new MenuItem("View Trips");
+        viewTripsItem.setOnAction(e -> openViewTripsDialog());
+        fileMenu.getItems().add(viewTripsItem);
         menuBar.getMenus().add(fileMenu);
         root.setTop(menuBar);
 
@@ -750,6 +754,38 @@ public class RailConnectGUI extends Application {
         Stage detailsStage = new Stage();
         detailsStage.initModality(Modality.APPLICATION_MODAL);
         detailsStage.setTitle("Single Traveler - Passenger Details");
+        Label dateLabel = new Label("Departure Day: ");
+        dateLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        javafx.scene.control.DatePicker datePicker = new javafx.scene.control.DatePicker();
+        datePicker.setPromptText("Choose date");
+        datePicker.setPrefWidth(250);
+
+        Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
+
+        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+            datePicker.setDayCellFactory(
+                new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
+                @Override
+                public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker){
+                    return new javafx.scene.control.DateCell(){
+                        @Override
+                        public void updateItem(java.time.LocalDate date, boolean empty){
+                            super.updateItem(date, empty);
+                            if(empty) return;
+                            DayOfWeek day = date.getDayOfWeek();
+                            boolean available = validDays.contains(day);
+
+                            setDisable(!available);
+                            if(available){
+                                setStyle("-fx-background-color: #e3ffe3");
+                            }
+                        }
+                    };
+                }
+            });
+        }
 
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
         grid.setPadding(new Insets(20));
@@ -796,10 +832,12 @@ public class RailConnectGUI extends Application {
         idField.setPrefWidth(250);
         grid.add(idField, 1, 4);
 
+        grid.add(dateLabel, 0, 5);
+        grid.add(datePicker, 1, 5);
         // Price
         Label priceLabel = new Label("Total: €" + String.format("%.2f", price));
         priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        grid.add(priceLabel, 0, 5, 2, 1);
+        grid.add(priceLabel, 0, 6, 2, 1);
 
         // Buttons
         Button confirmBtn = new Button("Confirm Booking");
@@ -837,7 +875,13 @@ public class RailConnectGUI extends Application {
             List<Client> clients = new java.util.ArrayList<>();
             clients.add(client);
 
-            BookedTrip result = processBooking(clients);
+            if(datePicker.getValue() == null){
+                showAlert("Please select a departure date that matches the train's schedule.");
+                return;
+            }
+            java.time.LocalDate chosenDate = datePicker.getValue();
+
+            BookedTrip result = processBooking(clients, chosenDate);
             if (result != null) {
                 detailsStage.close();
             }
@@ -851,7 +895,7 @@ public class RailConnectGUI extends Application {
 
         HBox buttonBox = new HBox(10);
         buttonBox.getChildren().addAll(confirmBtn, backBtn);
-        grid.add(buttonBox, 0, 6, 2, 1);
+        grid.add(buttonBox, 0, 7, 2, 1);
 
         Scene scene = new Scene(grid, 450, 350);
         detailsStage.setScene(scene);
@@ -862,7 +906,7 @@ public class RailConnectGUI extends Application {
     }
 
     // For both single and multi
-    private BookedTrip processBooking(List<Client> clients) {
+    private BookedTrip processBooking(List<Client> clients, java.time.LocalDate departureDate) {
         // Validate
         if (clients == null || clients.isEmpty()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -895,8 +939,8 @@ public class RailConnectGUI extends Application {
         }
 
         // Create the booked trip
-        BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected());
-
+        BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected(), departureDate);
+        System.out.println("DEBUG: trip departure date: " + departureDate);
         // Add a reservation for each client
         for (Client client : clients) {
             Reservation reservation = new Reservation(client, connection, firstClassCheck.isSelected());
@@ -916,6 +960,7 @@ public class RailConnectGUI extends Application {
         confirmMsg.append("Trip ID: ").append(bookedTrip.getTripId()).append("\n");
         confirmMsg.append("Route: ").append(selectedTripForBooking.getDepartureCity())
                 .append(" → ").append(selectedTripForBooking.getArrivalCity()).append("\n\n");
+        confirmMsg.append("Departure Date: ").append(bookedTrip.getDepartureDate()).append("\n");
         confirmMsg.append("Passengers (").append(clients.size()).append("):\n");
 
         for (int i = 0; i < clients.size(); i++) {
@@ -934,11 +979,50 @@ public class RailConnectGUI extends Application {
         return bookedTrip;
     }
 
-    // TO BE IMPLEMENENTED
+    private void showAlert(String message){
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
     private void openMultipleTravelersDialog(double pricePerPerson) {
         Stage multiStage = new Stage();
         multiStage.initModality(Modality.APPLICATION_MODAL);
-        multiStage.setTitle("Multiple Travelers");
+        multiStage.setTitle("Multiple Travelers Booking");
+        Label dateLabel = new Label("Departure Day: ");
+        dateLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        javafx.scene.control.DatePicker datePicker = new javafx.scene.control.DatePicker();
+        datePicker.setPromptText("Choose date");
+        datePicker.setPrefWidth(250);
+
+        Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
+
+        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+            datePicker.setDayCellFactory(
+                new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
+                @Override
+                public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker){
+                    return new javafx.scene.control.DateCell(){
+                        @Override
+                        public void updateItem(java.time.LocalDate date, boolean empty){
+                            super.updateItem(date, empty);
+                            if(empty) return;
+                            DayOfWeek day = date.getDayOfWeek();
+                            boolean available = validDays.contains(day);
+
+                            setDisable(!available);
+                            if(available){
+                                setStyle("-fx-background-color: #e3ffe3");
+                            }
+                        }
+                    };
+                }
+            });
+        }
 
         VBox mainLayout = new VBox(20);
         mainLayout.setPadding(new Insets(30));
@@ -946,22 +1030,187 @@ public class RailConnectGUI extends Application {
         Label titleLabel = new Label("Multiple Travelers Booking");
         titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        Label infoLabel = new Label("To be implemented");
+        Label infoLabel = new Label("Enter infromation for each traveler (2-10 people): ");
         infoLabel.setStyle("-fx-font-size: 14px;");
 
-        Button okBtn = new Button("OK");
-        okBtn.setOnAction(e -> {
+        HBox countBox = new HBox(10);
+        Label countLabel = new Label("Number of Travelers: ");
+        TextField countField = new TextField();
+        countField.setPromptText("e.g. 4");
+        countField.setPrefWidth(60);
+        Button generateBtn = new Button("Generate Fields");
+        countBox.getChildren().addAll(countLabel, countField, generateBtn);
+
+        VBox travelersBox = new VBox(15);
+        ScrollPane scrollPane = new ScrollPane(travelersBox);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(250);
+
+        HBox bottomButtons = new HBox(10);
+        Button confirmBtn = new Button("Confirm Booking");
+        confirmBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold");
+        Button cancelBtn = new Button("Cancel");
+        bottomButtons.getChildren().addAll(confirmBtn, cancelBtn);
+
+        generateBtn.setOnAction(e -> {
+            travelersBox.getChildren().clear();
+            String countStr = countField.getText().trim();
+            int count;
+            try{
+                count = Integer.parseInt(countStr);
+                if(count < 2 || count > 10){
+                    showAlert("Please enter a number between 2 and 10 travellers.");
+                    return;
+                }
+            } catch (NumberFormatException ex){
+                showAlert("Invalid number of travelers.");
+                return;
+            }
+
+            for(int i = 1; i <= count; i++){
+                VBox travelerForm = new VBox(5);
+                travelerForm.setStyle("-fx-border-color:#ccc; -fx-border-width: 1; -fx-padding:10;");
+                Label travelerTitle = new Label("Traveler " + i);
+                travelerTitle.setStyle("-fx-font-weight: bold;");
+
+                TextField fnField = new TextField();
+                fnField.setPromptText("First Name");
+
+                TextField lnField = new TextField();
+                lnField.setPromptText("Last Name");
+
+                TextField ageField = new TextField();
+                ageField.setPromptText("Age");
+
+                TextField idField = new TextField();
+                idField.setPromptText("ID Number");
+
+                travelerForm.getChildren().addAll(travelerTitle, fnField, lnField, ageField, idField);
+                travelersBox.getChildren().add(travelerForm);
+            }
+        });
+
+        confirmBtn.setOnAction(e -> {
+            List<Client> clients = new java.util.ArrayList<>();
+
+            for(javafx.scene.Node node : travelersBox.getChildren()){
+                if(node instanceof VBox travelerForm){
+                    List<TextField> fields = travelerForm.getChildren()
+                    .stream()
+                    .filter(n -> n instanceof TextField)
+                    .map(n -> (TextField) n)
+                    .toList();
+
+                    if(fields.size() != 4) continue;
+                    String fn = fields.get(0).getText().trim();
+                    String ln = fields.get(1).getText().trim();
+                    String ageStr = fields.get(2).getText().trim();
+                    String id = fields.get(3).getText().trim();
+
+                    if(fn.isEmpty() || ln.isEmpty() || ageStr.isEmpty() || id.isEmpty()){
+                        showAlert("Please fill in all fields for all travelers.");
+                        return;
+                    }
+
+                    int age;
+                    try{
+                        age = Integer.parseInt(ageStr);
+                        if(age <= 0 || age > 150) {
+                            showAlert("Please enter a valid age (1-150).");
+                            return;
+                        }
+                    } catch(NumberFormatException ex){
+                        showAlert("Invalid age for " + fn +" " + ln);
+                        return;
+                    }
+
+                    clients.add(new Client(fn, ln, age, id));
+                }
+            }
+
+            if(clients.isEmpty()){
+                showAlert("No traveler data entered");
+                return;
+            }
+            java.time.LocalDate chosenDate = datePicker.getValue();
+            BookedTrip result = processBooking(clients, chosenDate);
+            if(result != null) {
+                multiStage.close();
+            }
+        });
+
+        cancelBtn.setOnAction(e -> {
             multiStage.close();
             openBookingDialog();
         });
 
-        mainLayout.getChildren().addAll(titleLabel, infoLabel, okBtn);
+        Label priceLabel = new Label("Price per traveler: €" + String.format("%.2f", pricePerPerson));
+        priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
 
-        Scene scene = new Scene(mainLayout, 500, 350);
+        mainLayout.getChildren().addAll(titleLabel, dateLabel, datePicker, infoLabel, countBox, scrollPane, priceLabel, bottomButtons);
+        Scene scene = new Scene(mainLayout, 500, 600);
         multiStage.setScene(scene);
-        multiStage.showAndWait();
+        multiStage.initModality(Modality.APPLICATION_MODAL);
+        multiStage.show();
     }
 
+    private void openViewTripsDialog(){
+        Stage viewStage = new Stage();
+        viewStage.initModality(Modality.APPLICATION_MODAL);
+        viewStage.setTitle("View My Trips");
+
+        VBox layout = new VBox(15);
+        layout.setPadding(new Insets(20));
+
+        Label title = new Label("Enter Your Credentials");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+        TextField lastNameField = new TextField();
+        lastNameField.setPromptText("Last Name");
+
+        TextField idField = new TextField();
+        idField.setPromptText("ID");
+
+        TextArea resultsArea = new TextArea();
+        resultsArea.setEditable(false);
+        resultsArea.setPrefHeight(400);
+
+        Button searchBtn = new Button("View Trips");
+        searchBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;");
+        searchBtn.setOnAction(e -> {
+            String lastName = lastNameField.getText().trim();
+            String id = idField.getText().trim();
+
+            if(lastName.isEmpty() || id.isEmpty()){
+                showAlert("Please enter both last name and ID.");
+                return;
+            }
+
+            var results = system.viewTrips(lastName, id);
+            List<BookedTrip> currentTrips = results.get("currentTrips");
+            List<BookedTrip> pastTrips = results.get("pastTrips");
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("===========================================\n");
+            sb.append("            CURRENT / FUTURE TRIPS\n");
+            sb.append("===========================================\n");
+            if(currentTrips.isEmpty()) sb.append("No current or upcoming trips.\n");
+            else for (BookedTrip trip : currentTrips) sb.append(trip.toString()).append("\n");
+
+            sb.append("\n===========================================\n");
+            sb.append("                PAST TRIPS\n");
+            sb.append("===========================================\n");
+            if(pastTrips.isEmpty()) sb.append("No past trips.\n");
+            else for (BookedTrip trip : pastTrips) sb.append (trip.toString()).append("\n");
+
+            resultsArea.setText(sb.toString());
+        });
+
+        layout.getChildren().addAll(title, lastNameField, idField, searchBtn, resultsArea);
+        Scene scene = new Scene(layout, 550, 600);
+        viewStage.setScene(scene);
+        viewStage.showAndWait();
+    }
     public static void main(String[] args) {
         launch(args);
     }

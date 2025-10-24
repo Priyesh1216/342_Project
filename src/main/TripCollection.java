@@ -34,13 +34,13 @@ public class TripCollection {
 
     // Find all trips for a client based on the given last name and ID
     // For the view trips task
-    public List<BookedTrip> findTripsByLastNameAndId(String lastName, String id) {
+    public List<BookedTrip> findTripsByCredentials(String lastName, String id) {
         List<BookedTrip> matchingTrips = new ArrayList<>();
 
         for (BookedTrip trip : trips) {
             for (Reservation reservation : trip.getReservations()) {
                 Client client = reservation.getClient();
-
+                System.out.println("Client: " + client.getLastName() + ", ID=" + client.getId());
                 // Check if this client matches the criteria
                 if (client.matchesCredentials(lastName, id)) {
                     matchingTrips.add(trip);
