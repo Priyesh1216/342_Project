@@ -9,7 +9,6 @@ import java.util.HashSet;
 import java.time.DayOfWeek;
 
 // JavaFX imports
-import javafx.util.Callback;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -67,8 +66,9 @@ public class RailConnectGUI extends Application {
     private TripCollection tripCollection; // Collection for storing booked trips
 
     public void start(Stage primaryStage) {
-        system = new RailwaySystem();
-        tripCollection = new TripCollection(); // Initialize the collection (container for booked trips)
+        tripCollection = new TripCollection(); 
+        system = new RailwaySystem(tripCollection);
+        // Initialize the collection (container for booked trips)
 
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10));
@@ -79,6 +79,9 @@ public class RailConnectGUI extends Application {
         MenuItem loadItem = new MenuItem("Load CSV...");
         loadItem.setOnAction(e -> loadFile(primaryStage));
         fileMenu.getItems().add(loadItem);
+        MenuItem viewTripsItem = new MenuItem("View Trips");
+        viewTripsItem.setOnAction(e -> openViewTripsDialog());
+        fileMenu.getItems().add(viewTripsItem);
         menuBar.getMenus().add(fileMenu);
         root.setTop(menuBar);
 
@@ -937,7 +940,7 @@ public class RailConnectGUI extends Application {
 
         // Create the booked trip
         BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected(), departureDate);
-
+        System.out.println("DEBUG: trip departure date: " + departureDate);
         // Add a reservation for each client
         for (Client client : clients) {
             Reservation reservation = new Reservation(client, connection, firstClassCheck.isSelected());
@@ -1151,6 +1154,63 @@ public class RailConnectGUI extends Application {
         multiStage.show();
     }
 
+    private void openViewTripsDialog(){
+        Stage viewStage = new Stage();
+        viewStage.initModality(Modality.APPLICATION_MODAL);
+        viewStage.setTitle("View My Trips");
+
+        VBox layout = new VBox(15);
+        layout.setPadding(new Insets(20));
+
+        Label title = new Label("Enter Your Credentials");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+        TextField lastNameField = new TextField();
+        lastNameField.setPromptText("Last Name");
+
+        TextField idField = new TextField();
+        idField.setPromptText("ID");
+
+        TextArea resultsArea = new TextArea();
+        resultsArea.setEditable(false);
+        resultsArea.setPrefHeight(400);
+
+        Button searchBtn = new Button("View Trips");
+        searchBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;");
+        searchBtn.setOnAction(e -> {
+            String lastName = lastNameField.getText().trim();
+            String id = idField.getText().trim();
+
+            if(lastName.isEmpty() || id.isEmpty()){
+                showAlert("Please enter both last name and ID.");
+                return;
+            }
+
+            var results = system.viewTrips(lastName, id);
+            List<BookedTrip> currentTrips = results.get("currentTrips");
+            List<BookedTrip> pastTrips = results.get("pastTrips");
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("===========================================\n");
+            sb.append("            CURRENT / FUTURE TRIPS\n");
+            sb.append("===========================================\n");
+            if(currentTrips.isEmpty()) sb.append("No current or upcoming trips.\n");
+            else for (BookedTrip trip : currentTrips) sb.append(trip.toString()).append("\n");
+
+            sb.append("\n===========================================\n");
+            sb.append("                PAST TRIPS\n");
+            sb.append("===========================================\n");
+            if(pastTrips.isEmpty()) sb.append("No past trips.\n");
+            else for (BookedTrip trip : pastTrips) sb.append (trip.toString()).append("\n");
+
+            resultsArea.setText(sb.toString());
+        });
+
+        layout.getChildren().addAll(title, lastNameField, idField, searchBtn, resultsArea);
+        Scene scene = new Scene(layout, 550, 600);
+        viewStage.setScene(scene);
+        viewStage.showAndWait();
+    }
     public static void main(String[] args) {
         launch(args);
     }

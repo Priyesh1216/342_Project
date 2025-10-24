@@ -1,12 +1,16 @@
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RailwaySystem {
     private Connections connections;
+    private TripCollection tripCollection;
 
-    public RailwaySystem() {
+    public RailwaySystem(TripCollection tripCollection) {
         this.connections = new Connections();
+        this.tripCollection = tripCollection;
     }
 
     public int loadConnectionData(String filepath) {
@@ -245,6 +249,25 @@ public class RailwaySystem {
         return false;
     }
 
+    public Map<String, List<BookedTrip>> viewTrips(String lastName, String id){
+        List<BookedTrip> matchingTrips = tripCollection.findTripsByCredentials(lastName, id);
+
+        List<BookedTrip> currentTrips = new ArrayList<>();
+        List<BookedTrip> pastTrips = new ArrayList<>();
+
+        for(BookedTrip trip : matchingTrips){
+            if(trip.isFuture()){
+                currentTrips.add(trip);
+            } else {
+                pastTrips.add(trip);
+            }
+        }
+
+        Map<String, List<BookedTrip>> categorized = new HashMap<>();
+        categorized.put("currentTrips", currentTrips);
+        categorized.put("pastTrips", pastTrips);
+        return categorized;
+    }
     // parses selected days of the week
     // turns day range to list of days
     private java.util.Set<java.time.DayOfWeek> parseDays(String raw) {
