@@ -11,12 +11,17 @@ public class BookedTrip {
     private Trip selectedTrip; // The trip/connection selected from search
     private LocalDateTime bookingDate; // Time of when trip was booked
     private boolean isFirstClass;
+    private java.time.LocalDate departureDate; 
 
-    public BookedTrip(Trip selectedTrip, boolean isFirstClass) {
+    public BookedTrip(Trip selectedTrip, boolean isFirstClass){
+        this(selectedTrip, isFirstClass, java.time.LocalDate.now());
+    }
+    public BookedTrip(Trip selectedTrip, boolean isFirstClass, java.time.LocalDate departureDate) {
         this.tripId = generateTripId();
         this.reservations = new ArrayList<>();
         this.selectedTrip = selectedTrip;
         this.bookingDate = LocalDateTime.now();
+        this.departureDate = departureDate;
         this.isFirstClass = isFirstClass;
     }
 
@@ -58,6 +63,13 @@ public class BookedTrip {
         return reservations.size();
     }
 
+    public java.time.LocalDate getDepartureDate(){
+        return departureDate;
+    }
+
+    public void setDepartureDate(java.time.LocalDate departureDate) {
+        this.departureDate = departureDate;
+    }
     public boolean hasReservationForClient(String clientId) {
         for (Reservation reservation : reservations) {
             if (reservation.getClient().getId().equals(clientId)) {
@@ -133,6 +145,9 @@ public class BookedTrip {
         sb.append("Departure: ").append(selectedTrip.getDepartureTime()).append("\n");
         sb.append("Arrival: ").append(selectedTrip.getArrivalTime()).append("\n");
         sb.append("Duration: ").append(selectedTrip.getFormattedDuration()).append("\n");
+        sb.append("Planned Departure Date: ")
+            .append(departureDate != null ? departureDate : "Not set")
+            .append("\n");
         sb.append("Class: ").append(isFirstClass ? "First Class" : "Second Class").append("\n");
         sb.append("Booking Date: ").append(bookingDate).append("\n");
         sb.append("───────────────────────────────────────\n");

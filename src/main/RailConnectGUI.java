@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.time.DayOfWeek;
 
 // JavaFX imports
+import javafx.util.Callback;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -750,6 +751,38 @@ public class RailConnectGUI extends Application {
         Stage detailsStage = new Stage();
         detailsStage.initModality(Modality.APPLICATION_MODAL);
         detailsStage.setTitle("Single Traveler - Passenger Details");
+        Label dateLabel = new Label("Departure Day: ");
+        dateLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        javafx.scene.control.DatePicker datePicker = new javafx.scene.control.DatePicker();
+        datePicker.setPromptText("Choose date");
+        datePicker.setPrefWidth(250);
+
+        Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
+
+        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+            datePicker.setDayCellFactory(
+                new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
+                @Override
+                public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker){
+                    return new javafx.scene.control.DateCell(){
+                        @Override
+                        public void updateItem(java.time.LocalDate date, boolean empty){
+                            super.updateItem(date, empty);
+                            if(empty) return;
+                            DayOfWeek day = date.getDayOfWeek();
+                            boolean available = validDays.contains(day);
+
+                            setDisable(!available);
+                            if(available){
+                                setStyle("-fx-background-color: #e3ffe3");
+                            }
+                        }
+                    };
+                }
+            });
+        }
 
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
         grid.setPadding(new Insets(20));
@@ -796,10 +829,12 @@ public class RailConnectGUI extends Application {
         idField.setPrefWidth(250);
         grid.add(idField, 1, 4);
 
+        grid.add(dateLabel, 0, 5);
+        grid.add(datePicker, 1, 5);
         // Price
         Label priceLabel = new Label("Total: €" + String.format("%.2f", price));
         priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        grid.add(priceLabel, 0, 5, 2, 1);
+        grid.add(priceLabel, 0, 6, 2, 1);
 
         // Buttons
         Button confirmBtn = new Button("Confirm Booking");
@@ -837,7 +872,13 @@ public class RailConnectGUI extends Application {
             List<Client> clients = new java.util.ArrayList<>();
             clients.add(client);
 
-            BookedTrip result = processBooking(clients);
+            if(datePicker.getValue() == null){
+                showAlert("Please select a departure date that matches the train's schedule.");
+                return;
+            }
+            java.time.LocalDate chosenDate = datePicker.getValue();
+
+            BookedTrip result = processBooking(clients, chosenDate);
             if (result != null) {
                 detailsStage.close();
             }
@@ -851,7 +892,7 @@ public class RailConnectGUI extends Application {
 
         HBox buttonBox = new HBox(10);
         buttonBox.getChildren().addAll(confirmBtn, backBtn);
-        grid.add(buttonBox, 0, 6, 2, 1);
+        grid.add(buttonBox, 0, 7, 2, 1);
 
         Scene scene = new Scene(grid, 450, 350);
         detailsStage.setScene(scene);
@@ -862,7 +903,7 @@ public class RailConnectGUI extends Application {
     }
 
     // For both single and multi
-    private BookedTrip processBooking(List<Client> clients) {
+    private BookedTrip processBooking(List<Client> clients, java.time.LocalDate departureDate) {
         // Validate
         if (clients == null || clients.isEmpty()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -895,7 +936,7 @@ public class RailConnectGUI extends Application {
         }
 
         // Create the booked trip
-        BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected());
+        BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected(), departureDate);
 
         // Add a reservation for each client
         for (Client client : clients) {
@@ -916,6 +957,7 @@ public class RailConnectGUI extends Application {
         confirmMsg.append("Trip ID: ").append(bookedTrip.getTripId()).append("\n");
         confirmMsg.append("Route: ").append(selectedTripForBooking.getDepartureCity())
                 .append(" → ").append(selectedTripForBooking.getArrivalCity()).append("\n\n");
+        confirmMsg.append("Departure Date: ").append(bookedTrip.getDepartureDate()).append("\n");
         confirmMsg.append("Passengers (").append(clients.size()).append("):\n");
 
         for (int i = 0; i < clients.size(); i++) {
@@ -946,6 +988,38 @@ public class RailConnectGUI extends Application {
         Stage multiStage = new Stage();
         multiStage.initModality(Modality.APPLICATION_MODAL);
         multiStage.setTitle("Multiple Travelers Booking");
+        Label dateLabel = new Label("Departure Day: ");
+        dateLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        javafx.scene.control.DatePicker datePicker = new javafx.scene.control.DatePicker();
+        datePicker.setPromptText("Choose date");
+        datePicker.setPrefWidth(250);
+
+        Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
+
+        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+            datePicker.setDayCellFactory(
+                new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
+                @Override
+                public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker){
+                    return new javafx.scene.control.DateCell(){
+                        @Override
+                        public void updateItem(java.time.LocalDate date, boolean empty){
+                            super.updateItem(date, empty);
+                            if(empty) return;
+                            DayOfWeek day = date.getDayOfWeek();
+                            boolean available = validDays.contains(day);
+
+                            setDisable(!available);
+                            if(available){
+                                setStyle("-fx-background-color: #e3ffe3");
+                            }
+                        }
+                    };
+                }
+            });
+        }
 
         VBox mainLayout = new VBox(20);
         mainLayout.setPadding(new Insets(30));
@@ -1055,8 +1129,8 @@ public class RailConnectGUI extends Application {
                 showAlert("No traveler data entered");
                 return;
             }
-
-            BookedTrip result = processBooking(clients);
+            java.time.LocalDate chosenDate = datePicker.getValue();
+            BookedTrip result = processBooking(clients, chosenDate);
             if(result != null) {
                 multiStage.close();
             }
@@ -1070,7 +1144,7 @@ public class RailConnectGUI extends Application {
         Label priceLabel = new Label("Price per traveler: €" + String.format("%.2f", pricePerPerson));
         priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
 
-        mainLayout.getChildren().addAll(titleLabel, infoLabel, countBox, scrollPane, priceLabel, bottomButtons);
+        mainLayout.getChildren().addAll(titleLabel, dateLabel, datePicker, infoLabel, countBox, scrollPane, priceLabel, bottomButtons);
         Scene scene = new Scene(mainLayout, 500, 600);
         multiStage.setScene(scene);
         multiStage.initModality(Modality.APPLICATION_MODAL);
