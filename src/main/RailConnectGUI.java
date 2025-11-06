@@ -764,7 +764,7 @@ public class RailConnectGUI extends Application {
         Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
-        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+        if(!validDays.isEmpty()){
             datePicker.setDayCellFactory(
                 new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
                 @Override
@@ -780,6 +780,8 @@ public class RailConnectGUI extends Application {
                             setDisable(!available);
                             if(available){
                                 setStyle("-fx-background-color: #e3ffe3");
+                            } else {
+                                setStyle("-fx-background-color: #ffe3e3");
                             }
                         }
                     };
