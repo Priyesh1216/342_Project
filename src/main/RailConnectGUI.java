@@ -490,7 +490,8 @@ public class RailConnectGUI extends Application {
                         Segment nextSeg = trip.getSegments().get(i + 1);
                         Connection nextConn = nextSeg.getConnection();
 
-                        int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        int transferTime = system.calculateTransferTime(conn, nextConn);
                         totalTransferTime += transferTime;
                         sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
 
