@@ -488,7 +488,8 @@ public class RailConnectGUI extends Application {
                     if (i < trip.getConnections().size() - 1) {
                         Connection nextConn = trip.getConnections().get(i + 1);
 
-                        int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        int transferTime = system.calculateTransferTime(conn, nextConn);
                         totalTransferTime += transferTime;
                         sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
 
@@ -762,7 +763,7 @@ public class RailConnectGUI extends Application {
         Connection firstConnection = selectedTripForBooking.getConnections().get(0);
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
-        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+        if(!validDays.isEmpty()){
             datePicker.setDayCellFactory(
                 new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
                 @Override
@@ -778,6 +779,8 @@ public class RailConnectGUI extends Application {
                             setDisable(!available);
                             if(available){
                                 setStyle("-fx-background-color: #e3ffe3");
+                            } else {
+                                setStyle("-fx-background-color: #ffe3e3");
                             }
                         }
                     };

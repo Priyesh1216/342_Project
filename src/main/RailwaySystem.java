@@ -141,6 +141,10 @@ public class RailwaySystem {
         // Find all first legs departing from origin
         List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
         
+        // Define restrictions on layover times
+        short minLayoverMinutes = 30;       // At least 30 mins to allow for passengers to switch trains
+        short maxDayLayoverMinutes = 540;   // At most 9 hours during the day
+
         if(startDay != null) {
             firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
         }
@@ -150,6 +154,12 @@ public class RailwaySystem {
 
             for (Connection secondSegment : secondSegments) {
                 int transferTime = calculateTransferTime(firstSegment, secondSegment);
+                
+                // Handle layover time limits
+                if (transferTime < minLayoverMinutes || transferTime > maxDayLayoverMinutes) {
+                    continue;
+                }
+
                 Trip trip = new Trip();
                 trip.addConnection(firstSegment);
                 trip.addConnection(secondSegment);
@@ -167,6 +177,10 @@ public class RailwaySystem {
 
         // Find all first legs departing from origin
         List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+
+        // Define restrictions on layover times
+        short minLayoverMinutes = 30;       // At least 30 mins to allow for passengers to switch trains
+        short maxDayLayoverMinutes = 540;   // At most 9 hours during the day
 
         if(startDay != null){
             firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
@@ -193,6 +207,14 @@ public class RailwaySystem {
                     int transferTime1 = calculateTransferTime(firstSegment, secondSegment);
                     int transferTime2 = calculateTransferTime(secondSegment, thirdSegment);
 
+                    // Handle layover time limits
+                    if (transferTime1 < minLayoverMinutes || transferTime1 > maxDayLayoverMinutes) {
+                        continue; // Skip adding this segment
+                    } else if (transferTime2 < minLayoverMinutes || transferTime2 > maxDayLayoverMinutes) {
+                        continue;
+                    }
+
+                    
                     Trip trip = new Trip();
                     trip.addConnection(firstSegment);
                     trip.addConnection(secondSegment);
@@ -222,7 +244,7 @@ public class RailwaySystem {
         }
     }
 
-    private int calculateTransferTime(Connection firstSegment, Connection secondSegment) {
+    public int calculateTransferTime(Connection firstSegment, Connection secondSegment) {
         int arrivalMinutes = firstSegment.getArrivalTime().getHour() * 60 + firstSegment.getArrivalTime().getMinute();
         int departureMinutes = secondSegment.getDepartureTime().getHour() * 60
                 + secondSegment.getDepartureTime().getMinute();
