@@ -10,7 +10,7 @@ public class SingleTravelerBooking {
         }
 
         // Validate selected trip
-        if (selectedTrip == null || selectedTrip.getSegments().isEmpty()) {
+        if (selectedTrip == null || selectedTrip.getConnections().isEmpty()) {
             System.err.println("Error: Invalid trip selected");
             return null;
         }
@@ -22,10 +22,10 @@ public class SingleTravelerBooking {
         }
 
         try {
-            // Get the connection from the first segment
-            // Direct trips: only one segment
-            // Multi-segment trips: create a reservation for the first connection
-            Connection connection = selectedTrip.getSegments().get(0).getConnection();
+            // Get the first connection
+            // Direct trips: only one connection
+            // Multi-connection trips: create a reservation for the first connection
+            Connection connection = selectedTrip.getConnections().get(0);
 
             // Check if client already has a reservation for this connection
             if (tripRepository.hasReservationForConnection(client.getId(), connection)) {

@@ -110,7 +110,7 @@ public class RailwaySystem {
         // Create a trip for each direct connection
         for (Connection conn : directConnections) {
             Trip trip = new Trip();
-            trip.addSegment(new Segment(conn));
+            trip.addConnection(conn);
             trip.computeTotals(firstClass, 0); // No transfer time because direct
             allTrips.add(trip);
         }
@@ -161,8 +161,8 @@ public class RailwaySystem {
                 }
 
                 Trip trip = new Trip();
-                trip.addSegment(new Segment(firstSegment));
-                trip.addSegment(new Segment(secondSegment));
+                trip.addConnection(firstSegment);
+                trip.addConnection(secondSegment);
 
                 trip.computeTotals(firstClass, transferTime);
                 trips.add(trip);
@@ -216,9 +216,9 @@ public class RailwaySystem {
 
                     
                     Trip trip = new Trip();
-                    trip.addSegment(new Segment(firstSegment));
-                    trip.addSegment(new Segment(secondSegment));
-                    trip.addSegment(new Segment(thirdSegment));
+                    trip.addConnection(firstSegment);
+                    trip.addConnection(secondSegment);
+                    trip.addConnection(thirdSegment);
 
                     trip.computeTotals(firstClass, transferTime1 + transferTime2);
                     trips.add(trip);
