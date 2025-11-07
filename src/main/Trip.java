@@ -2,31 +2,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Trip {
-    private List<Segment> segments;
+    private List<Connection> connections;
     private int totalDurationMinutes;
     private double totalFirstClassPrice;
     private double totalSecondClassPrice;
     private int transferTimeMinutes;
 
     public Trip() {
-        this.segments = new ArrayList<>();
+        this.connections = new ArrayList<>();
         this.totalDurationMinutes = 0;
         this.totalFirstClassPrice = 0.0;
         this.totalSecondClassPrice = 0.0;
         this.transferTimeMinutes = 0;
     }
 
-    public void addSegment(Segment segment) {
-        segments.add(segment);
+    public void addConnection(Connection connection) {
+        connections.add(connection);
     }
 
-    public List<Segment> getSegments() {
-        return segments;
+    public List<Connection> getConnections() {
+        return connections;
     }
 
     public int getStopCount() {
-        if (segments.size() > 0) {
-            return segments.size() - 1;
+        if (connections.size() > 0) {
+            return connections.size() - 1;
         }
         return 0;
     }
@@ -38,10 +38,10 @@ public class Trip {
         totalSecondClassPrice = 0.0;
         transferTimeMinutes = transferMinutes * getStopCount();
 
-        for (Segment segment : segments) {
-            totalDurationMinutes = totalDurationMinutes + segment.getConnection().getDurationMinutes();
-            totalFirstClassPrice = totalFirstClassPrice + segment.getConnection().getFirstClassPrice();
-            totalSecondClassPrice = totalSecondClassPrice + segment.getConnection().getSecondClassPrice();
+        for (Connection connection: connections) {
+            totalDurationMinutes = totalDurationMinutes + connection.getDurationMinutes();
+            totalFirstClassPrice = totalFirstClassPrice + connection.getFirstClassPrice();
+            totalSecondClassPrice = totalSecondClassPrice + connection.getSecondClassPrice();
         }
 
         totalDurationMinutes = totalDurationMinutes + transferTimeMinutes;
@@ -78,35 +78,35 @@ public class Trip {
     }
 
     public String getDepartureCity() {
-        if (segments.size() > 0) {
-            return segments.get(0).getConnection().getDepartureCity().getName();
+        if (connections.size() > 0) {
+            return connections.get(0).getDepartureCity().getName();
         }
         return "";
     }
 
-    // The LAST segment's arrival city is the trip arrival city
+    // The LAST connection's arrival city is the trip arrival city
     public String getArrivalCity() {
-        if (segments.size() > 0) {
-            return segments.get(segments.size() - 1).getConnection().getArrivalCity().getName();
+        if (connections.size() > 0) {
+            return connections.get(connections.size() - 1).getArrivalCity().getName();
         }
         return "";
     }
 
-    // The FIRST segment's departure time is the trip departure time
+    // The FIRST connection's departure time is the trip departure time
     public String getDepartureTime() {
-        if (segments.size() > 0) {
-            return segments.get(0).getConnection().getDepartureTime().toString();
+        if (connections.size() > 0) {
+            return connections.get(0).getDepartureTime().toString();
         }
         return "";
     }
 
     // Used in Ticket.java
     public String getArrivalTime() {
-        if (segments.size() > 0) {
-            Segment lastSegment = segments.get(segments.size() - 1);
-            String time = lastSegment.getConnection().getArrivalTime().toString();
+        if (connections.size() > 0) {
+            Connection lastConnection = connections.get(connections.size() - 1);
+            String time = lastConnection.getArrivalTime().toString();
 
-            if (lastSegment.getConnection().isNextDay()) {
+            if (lastConnection.isNextDay()) {
                 time = time + " (+1d)";
             }
 

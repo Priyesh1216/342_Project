@@ -148,14 +148,14 @@ public class BookedTrip {
     private java.time.LocalDate calculateArrivalDate(Trip trip, java.time.LocalDate departureDate){
         LocalDate currentDay = departureDate;
 
-        for(int i = 0; i < trip.getSegments().size();i++){
-            Connection conn = trip.getSegments().get(i).getConnection();
+        for(int i = 0; i < trip.getConnections().size(); i++){
+            Connection conn = trip.getConnections().get(i);
             if(conn.isNextDay()){
                 currentDay = currentDay.plusDays(1);
             }
 
-            if(i < trip.getSegments().size() -1){
-                Connection nextConn = trip.getSegments().get(i+1).getConnection();
+            if(i < trip.getConnections().size() - 1){
+                Connection nextConn = trip.getConnections().get(i+1);
                 int transferMinutes = (nextConn.getDepartureTime().getHour() * 60 + conn.getArrivalTime().getMinute()) - (conn.getArrivalTime().getHour() * 60 + conn.getArrivalTime().getMinute());
 
                 if(transferMinutes < 0){
