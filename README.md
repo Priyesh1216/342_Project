@@ -16,11 +16,11 @@
    - Download JavaFX SDK from: https://gluonhq.com/products/javafx/ (choose a version that is lower than your current Java version)
    - Extract the zip file to a location on your computer
    - Note the path to the lib folder in the javafx-sdk folder (example: C:\javafx-sdk-17\lib or /path/to/javafx-sdk-17/lib
-4. Change the FILE_PATH to the file path of you JavaFX lib folder in the launch.json and settings.json files (see sample code below)
-5. Run the following commands in the main folder of the code (342_Project/src/main)<br>
-     **To compile:** `javac -encoding UTF-8 --module-path "FILE_PATH" --add-modules javafx.controls *.java`<br>
-     **To run:** `java --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
-
+4. Add the launch.json and settings.json files in the .vscode folder (see sample code below)
+5. Change the FILE_PATH to the file path of you JavaFX lib folder in the launch.json and settings.json files.
+6. Run the following commands in the main folder of the code (342_Project/src/main)<br>
+     **To compile:** `javac -cp ".;..\..\lib\sqlite-jdbc-3.50.3.0.jar" -encoding UTF-8 --module-path "FILE_PATH" --add-modules javafx.controls *.java`<br>
+     **To run:** `java -cp ".;..\..\lib\sqlite-jdbc-3.50.3.0.jar" --module-path "FILE_PATH" --add-modules javafx.controls RailConnectGUI`
 
 #### Create the following files in the rooot of the project if they don't exist:
 
@@ -46,7 +46,8 @@
 ```json
 {
     "java.project.referencedLibraries": [
-        "FILE_PATH/*.jar"
+        "FILE_PATH/*.jar",
+        "lib/**/*.jar"
     ]
 }
 ```
