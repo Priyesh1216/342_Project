@@ -109,7 +109,7 @@ public class RailwaySystem {
         // Create a trip for each direct connection
         for (Connection conn : directConnections) {
             Trip trip = new Trip();
-            trip.addSegment(new Segment(conn));
+            trip.addConnection(conn);
             trip.computeTotals(firstClass, 0); // No transfer time because direct
             allTrips.add(trip);
         }
@@ -139,8 +139,12 @@ public class RailwaySystem {
 
         // Find all first legs departing from origin
         List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
+        
+        // Define restrictions on layover times
+        short minLayoverMinutes = 30;       // At least 30 mins to allow for passengers to switch trains
+        short maxDayLayoverMinutes = 540;   // At most 9 hours during the day
 
-        if (startDay != null) {
+        if(startDay != null) {
             firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
         }
         for (Connection firstSegment : firstSegments) {
@@ -149,9 +153,15 @@ public class RailwaySystem {
 
             for (Connection secondSegment : secondSegments) {
                 int transferTime = calculateTransferTime(firstSegment, secondSegment);
+                
+                // Handle layover time limits
+                if (transferTime < minLayoverMinutes || transferTime > maxDayLayoverMinutes) {
+                    continue;
+                }
+
                 Trip trip = new Trip();
-                trip.addSegment(new Segment(firstSegment));
-                trip.addSegment(new Segment(secondSegment));
+                trip.addConnection(firstSegment);
+                trip.addConnection(secondSegment);
 
                 trip.computeTotals(firstClass, transferTime);
                 trips.add(trip);
@@ -168,7 +178,11 @@ public class RailwaySystem {
         // Find all first legs departing from origin
         List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
 
-        if (startDay != null) {
+        // Define restrictions on layover times
+        short minLayoverMinutes = 30;       // At least 30 mins to allow for passengers to switch trains
+        short maxDayLayoverMinutes = 540;   // At most 9 hours during the day
+
+        if(startDay != null){
             firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
         }
         for (Connection firstSegment : firstSegments) {
@@ -193,10 +207,18 @@ public class RailwaySystem {
                     int transferTime1 = calculateTransferTime(firstSegment, secondSegment);
                     int transferTime2 = calculateTransferTime(secondSegment, thirdSegment);
 
+                    // Handle layover time limits
+                    if (transferTime1 < minLayoverMinutes || transferTime1 > maxDayLayoverMinutes) {
+                        continue; // Skip adding this segment
+                    } else if (transferTime2 < minLayoverMinutes || transferTime2 > maxDayLayoverMinutes) {
+                        continue;
+                    }
+
+                    
                     Trip trip = new Trip();
-                    trip.addSegment(new Segment(firstSegment));
-                    trip.addSegment(new Segment(secondSegment));
-                    trip.addSegment(new Segment(thirdSegment));
+                    trip.addConnection(firstSegment);
+                    trip.addConnection(secondSegment);
+                    trip.addConnection(thirdSegment);
 
                     trip.computeTotals(firstClass, transferTime1 + transferTime2);
                     trips.add(trip);
@@ -222,7 +244,7 @@ public class RailwaySystem {
         }
     }
 
-    private int calculateTransferTime(Connection firstSegment, Connection secondSegment) {
+    public int calculateTransferTime(Connection firstSegment, Connection secondSegment) {
         int arrivalMinutes = firstSegment.getArrivalTime().getHour() * 60 + firstSegment.getArrivalTime().getMinute();
         int departureMinutes = secondSegment.getDepartureTime().getHour() * 60
                 + secondSegment.getDepartureTime().getMinute();

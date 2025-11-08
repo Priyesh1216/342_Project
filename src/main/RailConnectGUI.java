@@ -469,9 +469,8 @@ public class RailConnectGUI extends Application {
                 DayOfWeek currentDepartureDay = (lastSelectedStartDay != null) ? lastSelectedStartDay
                         : DayOfWeek.MONDAY;
 
-                for (int i = 0; i < trip.getSegments().size(); i++) {
-                    Segment seg = trip.getSegments().get(i);
-                    Connection conn = seg.getConnection();
+                for (int i = 0; i < trip.getConnections().size(); i++) {
+                    Connection conn = trip.getConnections().get(i);
                     sb.append("  " + segNum + ". " + conn.getDepartureCity().getName() +
                             " → " + conn.getArrivalCity().getName() + "\n");
                     sb.append("     " + conn.getDepartureTime() + " - " + conn.getArrivalTime());
@@ -486,11 +485,11 @@ public class RailConnectGUI extends Application {
                     DayOfWeek currentArrivalDay = arrivalDayFor(conn, currentDepartureDay);
 
                     // Calculate and display transfer time between segments
-                    if (i < trip.getSegments().size() - 1) {
-                        Segment nextSeg = trip.getSegments().get(i + 1);
-                        Connection nextConn = nextSeg.getConnection();
+                    if (i < trip.getConnections().size() - 1) {
+                        Connection nextConn = trip.getConnections().get(i + 1);
 
-                        int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        int transferTime = system.calculateTransferTime(conn, nextConn);
                         totalTransferTime += transferTime;
                         sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
 
@@ -761,7 +760,7 @@ public class RailConnectGUI extends Application {
         datePicker.setPromptText("Choose date");
         datePicker.setPrefWidth(250);
 
-        Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Connection firstConnection = selectedTripForBooking.getConnections().get(0);
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
         if(!validDays.isEmpty()){
@@ -927,7 +926,7 @@ public class RailConnectGUI extends Application {
         }
 
         // Get the first connection from the selected trip
-        Connection connection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Connection connection = selectedTripForBooking.getConnections().get(0);
 
         // Check if any client already has a reservation for this connection
         for (Client client : clients) {
@@ -1005,7 +1004,7 @@ public class RailConnectGUI extends Application {
         datePicker.setPromptText("Choose date");
         datePicker.setPrefWidth(250);
 
-        Connection firstConnection = selectedTripForBooking.getSegments().get(0).getConnection();
+        Connection firstConnection = selectedTripForBooking.getConnections().get(0);
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
         if (lastSelectedStartDay != null && !validDays.isEmpty()) {
