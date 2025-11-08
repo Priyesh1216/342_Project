@@ -1,13 +1,40 @@
 import java.util.ArrayList;
 import java.util.List;
 
+import javafx.scene.chart.PieChart.Data;
+
 // Store booked trips
 // Followed similar logic to Connections
 public class TripCollection {
     private List<BookedTrip> trips;
+    private DatabaseManager dbManager;
+    private Connections connections;
 
     public TripCollection() {
         this.trips = new ArrayList<>();
+        this.dbManager = null;
+        this.connections = null;
+    }
+
+    public void setDatabaseManager(DatabaseManager dbManager, Connections connections) {
+        this.dbManager = dbManager;
+        this.connections = connections;
+        loadFromDatabase();
+    }
+
+    private void loadFromDatabase() {
+        if (dbManager == null || connections == null)
+            return;
+
+        try {
+            System.out.println("Loading booked trips from database...");
+            List<BookedTrip> loaded = dbManager.loadAllBookedTrips(connections);
+            trips.addAll(loaded);
+            System.out.println("Loaded " + loaded.size() + " booked trips from database.");
+        } catch (Exception e) {
+            System.err.println("Error loading trips from database: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     // Save a booked trip
@@ -15,6 +42,15 @@ public class TripCollection {
         if (trip != null && trip.isValid()) {
             trips.add(trip);
             System.out.println("Trip saved: " + trip.getTripId());
+
+            // Save to database if available
+            if (dbManager != null) {
+                try {
+                    dbManager.saveBookedTrip(trip);
+                } catch (Exception e) {
+                    System.err.println("Error saving trip to database: " + e.getMessage());
+                }
+            }
         } else {
             System.err.println("Cannot save trip");
         }
@@ -73,6 +109,16 @@ public class TripCollection {
     public void clear() {
         trips.clear();
         System.out.println("All trips cleared from memory.");
+
+        // Clear from database if available
+        if (dbManager != null) {
+            try {
+                dbManager.clearBookedTrips();
+                System.out.println("Cleared booked trips from database.");
+            } catch (Exception e) {
+                System.err.println("Error clearing trips from database: " + e.getMessage());
+            }
+        }
     }
 
     // One reservation per client per connection

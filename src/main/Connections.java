@@ -5,11 +5,36 @@ public class Connections {
     private List<Connection> connections;
     private List<City> cities;
     private List<Train> trains;
+    private DatabaseManager dbManager;
 
     public Connections() {
         this.connections = new ArrayList<>();
         this.cities = new ArrayList<>();
         this.trains = new ArrayList<>();
+        this.dbManager = null;
+    }
+
+    public void setDatabaseManager(DatabaseManager dbManager) {
+        this.dbManager = dbManager;
+        loadFromDatabase();
+    }
+
+    private void loadFromDatabase() {
+        if (dbManager == null)
+            return;
+
+        try {
+            int dbCount = dbManager.getConnectionCount();
+            if (dbCount > 0) {
+                System.out.println("Loading connections from database...");
+                List<Connection> loaded = dbManager.loadAllConnections(this);
+                connections.addAll(loaded);
+                System.out.println("Loaded " + loaded.size() + " connections from database.");
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading from database: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     // Create city object if it does not already exist
@@ -44,6 +69,18 @@ public class Connections {
 
     public void add(Connection connection) {
         connections.add(connection);
+
+        // Save to database if available
+        if (dbManager != null) {
+            try {
+                int depCityId = dbManager.saveCityIfNotExists(connection.getDepartureCity().getName());
+                int arrCityId = dbManager.saveCityIfNotExists(connection.getArrivalCity().getName());
+                int trainId = dbManager.saveTrainIfNotExists(connection.getTrain().getType());
+                dbManager.saveConnection(connection, depCityId, arrCityId, trainId);
+            } catch (Exception e) {
+                System.err.println("Error saving connection to database: " + e.getMessage());
+            }
+        }
     }
 
     public List<Connection> getAll() {
@@ -325,5 +362,15 @@ public class Connections {
         connections.clear();
         cities.clear();
         trains.clear();
+
+        // Clear from database if available
+        if (dbManager != null) {
+            try {
+                dbManager.clearConnections();
+                System.out.println("Cleared connections from database.");
+            } catch (Exception e) {
+                System.err.println("Error clearing database: " + e.getMessage());
+            }
+        }
     }
 }
