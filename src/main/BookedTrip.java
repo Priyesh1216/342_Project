@@ -12,11 +12,13 @@ public class BookedTrip {
     private Trip selectedTrip; // The trip/connection selected from search
     private LocalDateTime bookingDate; // Time of when trip was booked
     private boolean isFirstClass;
-    private java.time.LocalDate departureDate; 
+    private java.time.LocalDate departureDate;
     private java.time.LocalDate arrivalDate;
-    public BookedTrip(Trip selectedTrip, boolean isFirstClass){
+
+    public BookedTrip(Trip selectedTrip, boolean isFirstClass) {
         this(selectedTrip, isFirstClass, java.time.LocalDate.now());
     }
+
     public BookedTrip(Trip selectedTrip, boolean isFirstClass, java.time.LocalDate departureDate) {
         this.tripId = generateTripId();
         this.reservations = new ArrayList<>();
@@ -65,16 +67,18 @@ public class BookedTrip {
         return reservations.size();
     }
 
-    public java.time.LocalDate getDepartureDate(){
+    public java.time.LocalDate getDepartureDate() {
         return departureDate;
     }
 
-    public java.time.LocalDate getArrivalDate(){
+    public java.time.LocalDate getArrivalDate() {
         return arrivalDate;
     }
+
     public void setDepartureDate(java.time.LocalDate departureDate) {
         this.departureDate = departureDate;
     }
+
     public boolean hasReservationForClient(String clientId) {
         for (Reservation reservation : reservations) {
             if (reservation.getClient().getId().equals(clientId)) {
@@ -82,6 +86,10 @@ public class BookedTrip {
             }
         }
         return false;
+    }
+
+    public void setTripId(String tripId) {
+        this.tripId = tripId;
     }
 
     public Reservation getReservationForClient(String clientId) {
@@ -110,8 +118,8 @@ public class BookedTrip {
     }
 
     public boolean isFuture() {
-        
-        if(departureDate == null) {
+
+        if (departureDate == null) {
             System.out.println("Trip " + tripId + ": departure date is null");
             return false;
         }
@@ -145,7 +153,7 @@ public class BookedTrip {
         return true;
     }
 
-    private java.time.LocalDate calculateArrivalDate(Trip trip, java.time.LocalDate departureDate){
+    private java.time.LocalDate calculateArrivalDate(Trip trip, java.time.LocalDate departureDate) {
         LocalDate currentDay = departureDate;
 
         for(int i = 0; i < trip.getConnections().size(); i++){
@@ -158,13 +166,14 @@ public class BookedTrip {
                 Connection nextConn = trip.getConnections().get(i+1);
                 int transferMinutes = (nextConn.getDepartureTime().getHour() * 60 + conn.getArrivalTime().getMinute()) - (conn.getArrivalTime().getHour() * 60 + conn.getArrivalTime().getMinute());
 
-                if(transferMinutes < 0){
+                if (transferMinutes < 0) {
                     currentDay = currentDay.plusDays(1);
                 }
             }
         }
         return currentDay;
     }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -177,8 +186,8 @@ public class BookedTrip {
         sb.append("Arrival: ").append(selectedTrip.getArrivalTime()).append("\n");
         sb.append("Duration: ").append(selectedTrip.getFormattedDuration()).append("\n");
         sb.append("Planned Departure Date: ")
-            .append(departureDate != null ? departureDate : "Not set")
-            .append("\n");
+                .append(departureDate != null ? departureDate : "Not set")
+                .append("\n");
         sb.append("Planned Arrival Date: ").append(arrivalDate != null ? arrivalDate : "Not set").append("\n");
         sb.append("Class: ").append(isFirstClass ? "First Class" : "Second Class").append("\n");
         sb.append("Booking Date: ").append(bookingDate).append("\n");

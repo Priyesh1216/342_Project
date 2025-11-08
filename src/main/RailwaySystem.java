@@ -102,11 +102,10 @@ public class RailwaySystem {
         // Find direct connections with ALL filters
         List<Connection> directConnections = connections.findMatching(depCity, arrCity,
                 depTimeMinutes, arrTimeMinutes, trainType, daysOp);
-        
-                if(startDay != null){
-                    directConnections.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay)
-                    );
-                }
+
+        if (startDay != null) {
+            directConnections.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
+        }
         // Create a trip for each direct connection
         for (Connection conn : directConnections) {
             Trip trip = new Trip();
@@ -172,7 +171,8 @@ public class RailwaySystem {
     }
 
     private List<Trip> findTwoStopTrips(String depCity, String arrCity, Integer depTime, Integer arrTime,
-            String trainType, String daysOp, boolean firstClass, List<Connection> directConnections, java.time.DayOfWeek startDay) {
+            String trainType, String daysOp, boolean firstClass, List<Connection> directConnections,
+            java.time.DayOfWeek startDay) {
         List<Trip> trips = new ArrayList<>();
 
         // Find all first legs departing from origin
@@ -271,14 +271,15 @@ public class RailwaySystem {
         return false;
     }
 
-    public Map<String, List<BookedTrip>> viewTrips(String lastName, String id){
-        List<BookedTrip> matchingTrips = tripCollection.findTripsByCredentials(lastName, id);
+    public Map<String, List<BookedTrip>> viewTrips(String lastName, String id) {
+        // Load from the database
+        List<BookedTrip> allTrips = DatabaseHelper.loadTrips(lastName, id);
 
         List<BookedTrip> currentTrips = new ArrayList<>();
         List<BookedTrip> pastTrips = new ArrayList<>();
 
-        for(BookedTrip trip : matchingTrips){
-            if(trip.isFuture()){
+        for (BookedTrip trip : allTrips) {
+            if (trip.isFuture()) {
                 currentTrips.add(trip);
             } else {
                 pastTrips.add(trip);
@@ -290,16 +291,19 @@ public class RailwaySystem {
         categorized.put("pastTrips", pastTrips);
         return categorized;
     }
+
     // parses selected days of the week
     // turns day range to list of days
     private java.util.Set<java.time.DayOfWeek> parseDays(String raw) {
         java.util.Set<java.time.DayOfWeek> out = new java.util.HashSet<>();
-        if (raw == null || raw.isBlank()) return out;
+        if (raw == null || raw.isBlank())
+            return out;
         String s = raw.trim().toLowerCase()
                 .replace("–", "-").replace("—", "-"); // normalize en/em dash to hyphen
 
         if (s.equals("daily")) {
-            for (var d : java.time.DayOfWeek.values()) out.add(d);
+            for (var d : java.time.DayOfWeek.values())
+                out.add(d);
             return out;
         }
 
@@ -310,29 +314,41 @@ public class RailwaySystem {
                 if (ab.length == 2) {
                     var a = parseDay(ab[0]);
                     var b = parseDay(ab[1]);
-                    if (a != null && b != null) addRange(out, a, b);
+                    if (a != null && b != null)
+                        addRange(out, a, b);
                 }
             } else {
                 var d = parseDay(token);
-                if (d != null) out.add(d);
+                if (d != null)
+                    out.add(d);
             }
         }
         return out;
     }
 
     private java.time.DayOfWeek parseDay(String t) {
-        if (t == null) return null;
+        if (t == null)
+            return null;
         t = t.trim().toLowerCase();
-        if (t.length() >= 3) t = t.substring(0, 3);
+        if (t.length() >= 3)
+            t = t.substring(0, 3);
         switch (t) {
-            case "mon": return java.time.DayOfWeek.MONDAY;
-            case "tue": return java.time.DayOfWeek.TUESDAY;
-            case "wed": return java.time.DayOfWeek.WEDNESDAY;
-            case "thu": return java.time.DayOfWeek.THURSDAY;
-            case "fri": return java.time.DayOfWeek.FRIDAY;
-            case "sat": return java.time.DayOfWeek.SATURDAY;
-            case "sun": return java.time.DayOfWeek.SUNDAY;
-            default: return null;
+            case "mon":
+                return java.time.DayOfWeek.MONDAY;
+            case "tue":
+                return java.time.DayOfWeek.TUESDAY;
+            case "wed":
+                return java.time.DayOfWeek.WEDNESDAY;
+            case "thu":
+                return java.time.DayOfWeek.THURSDAY;
+            case "fri":
+                return java.time.DayOfWeek.FRIDAY;
+            case "sat":
+                return java.time.DayOfWeek.SATURDAY;
+            case "sun":
+                return java.time.DayOfWeek.SUNDAY;
+            default:
+                return null;
         }
     }
 
@@ -341,7 +357,8 @@ public class RailwaySystem {
         for (int k = 0; k < 7; k++) {
             int idx = (i + k) % 7;
             out.add(java.time.DayOfWeek.of(idx + 1));
-            if (idx == j) break;
+            if (idx == j)
+                break;
         }
     }
 }
