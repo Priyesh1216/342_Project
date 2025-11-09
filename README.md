@@ -2,7 +2,7 @@
 
 ## Group Members
 
-- Priyesh Patel (40283049)
+- Priyesh Patel (40283049) - Team Lead
 - Matthew Lucas Santiago (40284787)
 - Sasha Klein-Charland (40281076)
 

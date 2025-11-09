@@ -962,6 +962,12 @@ public class RailConnectGUI extends Application {
         // Save to collection
         tripCollection.saveTrip(bookedTrip);
 
+        for (Client client : clients) {
+            DatabaseHelper.saveClient(client);
+        }
+        DatabaseHelper.saveTrip(bookedTrip);
+        System.out.println("Trip saved to database");
+
         // Show confirmation
         StringBuilder confirmMsg = new StringBuilder();
         confirmMsg.append("Booking Successful!\n\n");
@@ -1230,6 +1236,8 @@ public class RailConnectGUI extends Application {
     }
 
     public static void main(String[] args) {
+        DatabaseHelper.setup();
+
         launch(args);
     }
 }
