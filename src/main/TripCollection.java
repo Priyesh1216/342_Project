@@ -46,7 +46,7 @@ public class TripCollection {
             // Save to database if available
             if (dbManager != null) {
                 try {
-                    dbManager.saveBookedTrip(trip);
+                    dbManager.saveBookedTrip(trip, connections);
                 } catch (Exception e) {
                     System.err.println("Error saving trip to database: " + e.getMessage());
                 }

@@ -1,7 +1,6 @@
 import java.sql.*;
 import java.time.LocalTime;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,6 +47,21 @@ public class DatabaseManager {
                 "FOREIGN KEY(arrival_city_id) REFERENCES cities(id), " +
                 "FOREIGN KEY(train_id) REFERENCES trains(id))");
 
+        stmt.execute("CREATE TABLE IF NOT EXISTS trips (" +
+                "trip_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "total_duration_minutes INTEGER NOT NULL, " +
+                "total_transfer_time_minutes INTEGER NOT NULL, " +
+                "first_class_price REAL NOT NULL, " +
+                "second_class_price REAL NOT NULL)");
+
+        stmt.execute("CREATE TABLE IF NOT EXISTS trip_connections (" +
+                "trip_id INTEGER NOT NULL, " +
+                "connection_id INTEGER NOT NULL, " +
+                "sequence_order INTEGER NOT NULL, " +
+                "PRIMARY KEY (trip_id, connection_id), " +
+                "FOREIGN KEY(trip_id) REFERENCES trips(trip_id), " +
+                "FOREIGN KEY(connection_id) REFERENCES connections(id))");
+
         stmt.execute("CREATE TABLE IF NOT EXISTS clients (" +
                 "id TEXT PRIMARY KEY, " +
                 "first_name TEXT NOT NULL, " +
@@ -55,28 +69,29 @@ public class DatabaseManager {
                 "age INTEGER NOT NULL)");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS booked_trips (" +
-                "trip_id TEXT PRIMARY KEY, " +
-                "departure_city TEXT NOT NULL, " +
-                "arrival_city TEXT NOT NULL, " +
-                "departure_time TEXT NOT NULL, " +
-                "arrival_time TEXT NOT NULL, " +
+                "booked_trip_id TEXT PRIMARY KEY, " +
+                "trip_id INTEGER NOT NULL, " +
                 "booking_date TEXT NOT NULL, " +
-                "is_first_class INTEGER NOT NULL, " +
                 "departure_date TEXT, " +
-                "arrival_date TEXT)");
+                "arrival_date TEXT, " +
+                "is_first_class INTEGER NOT NULL, " +
+                "FOREIGN KEY(trip_id) REFERENCES trips(trip_id))");
 
         stmt.execute("CREATE TABLE IF NOT EXISTS reservations (" +
                 "reservation_id INTEGER PRIMARY KEY, " +
-                "trip_id TEXT NOT NULL, " +
+                "booked_trip_id TEXT NOT NULL, " +
                 "client_id TEXT NOT NULL, " +
-                "connection_route_id TEXT NOT NULL, " +
+                "connection_id INTEGER NOT NULL, " +
                 "is_first_class INTEGER NOT NULL, " +
-                "FOREIGN KEY(trip_id) REFERENCES booked_trips(trip_id), " +
-                "FOREIGN KEY(client_id) REFERENCES clients(id))");
+                "FOREIGN KEY(booked_trip_id) REFERENCES booked_trips(booked_trip_id), " +
+                "FOREIGN KEY(client_id) REFERENCES clients(id), " +
+                "FOREIGN KEY(connection_id) REFERENCES connections(id))");
 
         stmt.close();
-
+        System.out.println("Database tables initialized.");
     }
+
+    // ==================== CITY OPERATIONS ====================
 
     public int saveCityIfNotExists(String name) throws SQLException {
         PreparedStatement checkStmt = connection.prepareStatement(
@@ -106,6 +121,7 @@ public class DatabaseManager {
         return id;
     }
 
+    // TRAIN OPERATIONS
     public int saveTrainIfNotExists(String type) throws SQLException {
         PreparedStatement checkStmt = connection.prepareStatement(
                 "SELECT id FROM trains WHERE LOWER(type) = LOWER(?)");
@@ -133,6 +149,8 @@ public class DatabaseManager {
 
         return id;
     }
+
+    // CONNECTION OPERATIONS
 
     public void saveConnection(Connection conn, int depCityId, int arrCityId, int trainId) throws SQLException {
         PreparedStatement stmt = connection.prepareStatement(
@@ -213,6 +231,161 @@ public class DatabaseManager {
         stmt.close();
     }
 
+    // FIND CONNECTION DB ID
+    private int findConnectionDbId(Connection conn) throws SQLException {
+        PreparedStatement stmt = connection.prepareStatement(
+                "SELECT id FROM connections WHERE route_id = ? " +
+                        "AND departure_time = ? AND arrival_time = ?");
+
+        stmt.setString(1, conn.getRouteID());
+        stmt.setString(2, conn.getDepartureTime().toString());
+        stmt.setString(3, conn.getArrivalTime().toString());
+
+        ResultSet rs = stmt.executeQuery();
+        int id = -1;
+        if (rs.next()) {
+            id = rs.getInt("id");
+        }
+
+        rs.close();
+        stmt.close();
+        return id;
+    }
+
+    // FIND CONNECTION BY DB ID
+    private Connection findConnectionById(int connectionId, Connections connections) {
+        try {
+            PreparedStatement stmt = connection.prepareStatement(
+                    "SELECT c.*, dc.name as dep_city_name, ac.name as arr_city_name, " +
+                            "t.type as train_type " +
+                            "FROM connections c " +
+                            "JOIN cities dc ON c.departure_city_id = dc.id " +
+                            "JOIN cities ac ON c.arrival_city_id = ac.id " +
+                            "JOIN trains t ON c.train_id = t.id " +
+                            "WHERE c.id = ?");
+
+            stmt.setInt(1, connectionId);
+            ResultSet rs = stmt.executeQuery();
+
+            Connection conn = null;
+            if (rs.next()) {
+                String routeId = rs.getString("route_id");
+                String depCityName = rs.getString("dep_city_name");
+                String arrCityName = rs.getString("arr_city_name");
+                LocalTime depTime = LocalTime.parse(rs.getString("departure_time"));
+                LocalTime arrTime = LocalTime.parse(rs.getString("arrival_time"));
+                String trainType = rs.getString("train_type");
+                String daysOfOp = rs.getString("days_of_operation");
+                double firstClassPrice = rs.getDouble("first_class_price");
+                double secondClassPrice = rs.getDouble("second_class_price");
+                boolean isNextDay = rs.getInt("is_next_day") == 1;
+
+                City depCity = connections.findOrCreateCity(depCityName);
+                City arrCity = connections.findOrCreateCity(arrCityName);
+                Train train = connections.findOrCreateTrain(trainType);
+
+                conn = new Connection(routeId, depCity, arrCity, depTime, arrTime,
+                        train, daysOfOp, firstClassPrice, secondClassPrice, isNextDay);
+            }
+
+            rs.close();
+            stmt.close();
+            return conn;
+
+        } catch (SQLException e) {
+            System.err.println("Error finding connection by ID: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // TRIP OPERATIONS
+
+    private int saveTrip(Trip trip) throws SQLException {
+        PreparedStatement stmt = connection.prepareStatement(
+                "INSERT INTO trips (total_duration_minutes, total_transfer_time_minutes, " +
+                        "first_class_price, second_class_price) VALUES (?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS);
+
+        stmt.setInt(1, trip.getTotalDurationMinutes());
+        stmt.setInt(2, trip.getTransferTimeMinutes());
+        stmt.setDouble(3, trip.getTotalFirstClassPrice());
+        stmt.setDouble(4, trip.getTotalSecondClassPrice());
+
+        stmt.executeUpdate();
+
+        ResultSet generatedKeys = stmt.getGeneratedKeys();
+        int tripId = generatedKeys.next() ? generatedKeys.getInt(1) : -1;
+        generatedKeys.close();
+        stmt.close();
+
+        return tripId;
+    }
+
+    private void saveTripConnections(int tripDbId, Trip trip) throws SQLException {
+        int sequence = 1;
+        for (Connection conn : trip.getConnections()) {
+            int connectionDbId = findConnectionDbId(conn);
+
+            if (connectionDbId != -1) {
+                PreparedStatement stmt = connection.prepareStatement(
+                        "INSERT INTO trip_connections (trip_id, connection_id, sequence_order) " +
+                                "VALUES (?, ?, ?)");
+
+                stmt.setInt(1, tripDbId);
+                stmt.setInt(2, connectionDbId);
+                stmt.setInt(3, sequence++);
+
+                stmt.executeUpdate();
+                stmt.close();
+            }
+        }
+    }
+
+    private Trip loadTrip(int tripDbId, Connections connections) throws SQLException {
+        PreparedStatement tripStmt = connection.prepareStatement(
+                "SELECT * FROM trips WHERE trip_id = ?");
+        tripStmt.setInt(1, tripDbId);
+        ResultSet tripRs = tripStmt.executeQuery();
+
+        if (!tripRs.next()) {
+            tripRs.close();
+            tripStmt.close();
+            return null;
+        }
+
+        int transferTime = tripRs.getInt("total_transfer_time_minutes");
+
+        tripRs.close();
+        tripStmt.close();
+
+        PreparedStatement connStmt = connection.prepareStatement(
+                "SELECT connection_id FROM trip_connections " +
+                        "WHERE trip_id = ? ORDER BY sequence_order");
+        connStmt.setInt(1, tripDbId);
+        ResultSet connRs = connStmt.executeQuery();
+
+        Trip trip = new Trip();
+        while (connRs.next()) {
+            int connectionDbId = connRs.getInt("connection_id");
+            Connection conn = findConnectionById(connectionDbId, connections);
+            if (conn != null) {
+                trip.addConnection(conn);
+            }
+        }
+
+        connRs.close();
+        connStmt.close();
+
+        if (!trip.getConnections().isEmpty()) {
+            int transferTimePerStop = trip.getStopCount() > 0 ? transferTime / trip.getStopCount() : 0;
+            trip.computeTotals(false, transferTimePerStop);
+        }
+
+        return trip;
+    }
+
+    // CLIENT OPERATIONS
+
     public void saveClient(Client client) throws SQLException {
         PreparedStatement stmt = connection.prepareStatement(
                 "INSERT OR REPLACE INTO clients (id, first_name, last_name, age) VALUES (?, ?, ?, ?)");
@@ -226,68 +399,106 @@ public class DatabaseManager {
         stmt.close();
     }
 
-    public void saveBookedTrip(BookedTrip trip) throws SQLException {
-        for (Reservation res : trip.getReservations()) {
-            saveClient(res.getClient());
-        }
+    // BOOKED TRIP OPERATIONS
 
-        PreparedStatement tripStmt = connection.prepareStatement(
-                "INSERT OR REPLACE INTO booked_trips (trip_id, departure_city, arrival_city, " +
-                        "departure_time, arrival_time, booking_date, is_first_class, " +
-                        "departure_date, arrival_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    public void saveBookedTrip(BookedTrip bookedTrip, Connections connectionsObj) throws SQLException {
+        connection.setAutoCommit(false);
 
-        Trip selectedTrip = trip.getSelectedTrip();
-        tripStmt.setString(1, trip.getTripId());
-        tripStmt.setString(2, selectedTrip.getDepartureCity());
-        tripStmt.setString(3, selectedTrip.getArrivalCity());
-        tripStmt.setString(4, selectedTrip.getDepartureTime());
-        tripStmt.setString(5, selectedTrip.getArrivalTime());
-        tripStmt.setString(6, trip.getBookingDate().toString());
-        tripStmt.setInt(7, trip.isFirstClass() ? 1 : 0);
-        tripStmt.setString(8, trip.getDepartureDate() != null ? trip.getDepartureDate().toString() : null);
-        tripStmt.setString(9, trip.getArrivalDate() != null ? trip.getArrivalDate().toString() : null);
+        try {
+            // 1. Save clients
+            for (Reservation res : bookedTrip.getReservations()) {
+                saveClient(res.getClient());
+            }
 
-        tripStmt.executeUpdate();
-        tripStmt.close();
+            // 2. Save Trip entity
+            Trip selectedTrip = bookedTrip.getSelectedTrip();
+            int tripDbId = saveTrip(selectedTrip);
 
-        for (Reservation res : trip.getReservations()) {
-            PreparedStatement resStmt = connection.prepareStatement(
-                    "INSERT OR REPLACE INTO reservations (reservation_id, trip_id, client_id, " +
-                            "connection_route_id, is_first_class) VALUES (?, ?, ?, ?, ?)");
+            if (tripDbId == -1) {
+                throw new SQLException("Failed to save trip");
+            }
 
-            resStmt.setInt(1, res.getReservationId());
-            resStmt.setString(2, trip.getTripId());
-            resStmt.setString(3, res.getClient().getId());
-            resStmt.setString(4, res.getConnection().getRouteID());
-            resStmt.setInt(5, res.isFirstClass() ? 1 : 0);
+            // 3. Save trip-connection relationships
+            saveTripConnections(tripDbId, selectedTrip);
 
-            resStmt.executeUpdate();
-            resStmt.close();
+            // 4. Save BookedTrip
+            PreparedStatement bookedTripStmt = connection.prepareStatement(
+                    "INSERT OR REPLACE INTO booked_trips (booked_trip_id, trip_id, booking_date, " +
+                            "departure_date, arrival_date, is_first_class) VALUES (?, ?, ?, ?, ?, ?)");
+
+            bookedTripStmt.setString(1, bookedTrip.getTripId());
+            bookedTripStmt.setInt(2, tripDbId);
+            bookedTripStmt.setString(3, bookedTrip.getBookingDate().toString());
+            bookedTripStmt.setString(4,
+                    bookedTrip.getDepartureDate() != null ? bookedTrip.getDepartureDate().toString() : null);
+            bookedTripStmt.setString(5,
+                    bookedTrip.getArrivalDate() != null ? bookedTrip.getArrivalDate().toString() : null);
+            bookedTripStmt.setInt(6, bookedTrip.isFirstClass() ? 1 : 0);
+
+            bookedTripStmt.executeUpdate();
+            bookedTripStmt.close();
+
+            // 5. Save reservations
+            for (Reservation res : bookedTrip.getReservations()) {
+                int connectionDbId = findConnectionDbId(res.getConnection());
+
+                if (connectionDbId != -1) {
+                    PreparedStatement resStmt = connection.prepareStatement(
+                            "INSERT OR REPLACE INTO reservations (reservation_id, booked_trip_id, " +
+                                    "client_id, connection_id, is_first_class) VALUES (?, ?, ?, ?, ?)");
+
+                    resStmt.setInt(1, res.getReservationId());
+                    resStmt.setString(2, bookedTrip.getTripId());
+                    resStmt.setString(3, res.getClient().getId());
+                    resStmt.setInt(4, connectionDbId);
+                    resStmt.setInt(5, res.isFirstClass() ? 1 : 0);
+
+                    resStmt.executeUpdate();
+                    resStmt.close();
+                }
+            }
+
+            connection.commit();
+            connection.setAutoCommit(true);
+            System.out.println("✓ Saved booked trip: " + bookedTrip.getTripId());
+
+        } catch (SQLException e) {
+            connection.rollback();
+            connection.setAutoCommit(true);
+            System.err.println("Error saving booked trip: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
     }
 
     public List<BookedTrip> loadAllBookedTrips(Connections connections) throws SQLException {
-        List<BookedTrip> trips = new ArrayList<>();
+        List<BookedTrip> bookedTrips = new ArrayList<>();
 
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT * FROM booked_trips");
 
         while (rs.next()) {
-            String tripId = rs.getString("trip_id");
+            String bookedTripId = rs.getString("booked_trip_id");
+            int tripDbId = rs.getInt("trip_id");
             boolean isFirstClass = rs.getInt("is_first_class") == 1;
             String departureDateStr = rs.getString("departure_date");
             LocalDate departureDate = departureDateStr != null ? LocalDate.parse(departureDateStr) : LocalDate.now();
+
+            Trip reconstructedTrip = loadTrip(tripDbId, connections);
+
+            if (reconstructedTrip == null) {
+                continue;
+            }
 
             PreparedStatement resStmt = connection.prepareStatement(
                     "SELECT r.*, c.first_name, c.last_name, c.age " +
                             "FROM reservations r " +
                             "JOIN clients c ON r.client_id = c.id " +
-                            "WHERE r.trip_id = ?");
-            resStmt.setString(1, tripId);
+                            "WHERE r.booked_trip_id = ?");
+            resStmt.setString(1, bookedTripId);
             ResultSet resRs = resStmt.executeQuery();
 
             List<Reservation> reservations = new ArrayList<>();
-            Trip reconstructedTrip = null;
 
             while (resRs.next()) {
                 String clientId = resRs.getString("client_id");
@@ -296,14 +507,8 @@ public class DatabaseManager {
                 int age = resRs.getInt("age");
                 Client client = new Client(firstName, lastName, age, clientId);
 
-                String routeId = resRs.getString("connection_route_id");
-                Connection conn = findConnectionByRouteId(routeId, connections);
-
-                if (conn != null && reconstructedTrip == null) {
-                    reconstructedTrip = new Trip();
-                    reconstructedTrip.addConnection(conn);
-                    reconstructedTrip.computeTotals(isFirstClass, 0);
-                }
+                int connectionDbId = resRs.getInt("connection_id");
+                Connection conn = findConnectionById(connectionDbId, connections);
 
                 if (conn != null) {
                     Reservation reservation = new Reservation(client, conn, isFirstClass);
@@ -314,33 +519,26 @@ public class DatabaseManager {
             resRs.close();
             resStmt.close();
 
-            if (reconstructedTrip != null && !reservations.isEmpty()) {
+            if (!reservations.isEmpty()) {
                 BookedTrip bookedTrip = new BookedTrip(reconstructedTrip, isFirstClass, departureDate);
                 for (Reservation res : reservations) {
                     bookedTrip.addReservation(res);
                 }
-                trips.add(bookedTrip);
+                bookedTrips.add(bookedTrip);
             }
         }
 
         rs.close();
         stmt.close();
-        return trips;
-    }
-
-    private Connection findConnectionByRouteId(String routeId, Connections connections) {
-        for (Connection conn : connections.getAll()) {
-            if (conn.getRouteID().equals(routeId)) {
-                return conn;
-            }
-        }
-        return null;
+        return bookedTrips;
     }
 
     public void clearBookedTrips() throws SQLException {
         Statement stmt = connection.createStatement();
         stmt.execute("DELETE FROM reservations");
         stmt.execute("DELETE FROM booked_trips");
+        stmt.execute("DELETE FROM trip_connections");
+        stmt.execute("DELETE FROM trips");
         stmt.close();
     }
 
