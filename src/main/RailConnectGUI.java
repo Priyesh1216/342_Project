@@ -66,7 +66,7 @@ public class RailConnectGUI extends Application {
     private TripCollection tripCollection; // Collection for storing booked trips
 
     public void start(Stage primaryStage) {
-        tripCollection = new TripCollection(); 
+        tripCollection = new TripCollection();
         system = new RailwaySystem(tripCollection);
         // Initialize the collection (container for booked trips)
 
@@ -488,7 +488,8 @@ public class RailConnectGUI extends Application {
                     if (i < trip.getConnections().size() - 1) {
                         Connection nextConn = trip.getConnections().get(i + 1);
 
-                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn,
+                        // currentArrivalDay);
                         int transferTime = system.calculateTransferTime(conn, nextConn);
                         totalTransferTime += transferTime;
                         sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
@@ -763,29 +764,30 @@ public class RailConnectGUI extends Application {
         Connection firstConnection = selectedTripForBooking.getConnections().get(0);
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
-        if(!validDays.isEmpty()){
+        if (!validDays.isEmpty()) {
             datePicker.setDayCellFactory(
-                new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
-                @Override
-                public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker){
-                    return new javafx.scene.control.DateCell(){
+                    new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>() {
                         @Override
-                        public void updateItem(java.time.LocalDate date, boolean empty){
-                            super.updateItem(date, empty);
-                            if(empty) return;
-                            DayOfWeek day = date.getDayOfWeek();
-                            boolean available = validDays.contains(day);
+                        public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker) {
+                            return new javafx.scene.control.DateCell() {
+                                @Override
+                                public void updateItem(java.time.LocalDate date, boolean empty) {
+                                    super.updateItem(date, empty);
+                                    if (empty)
+                                        return;
+                                    DayOfWeek day = date.getDayOfWeek();
+                                    boolean available = validDays.contains(day);
 
-                            setDisable(!available);
-                            if(available){
-                                setStyle("-fx-background-color: #e3ffe3");
-                            } else {
-                                setStyle("-fx-background-color: #ffe3e3");
-                            }
+                                    setDisable(!available);
+                                    if (available) {
+                                        setStyle("-fx-background-color: #e3ffe3");
+                                    } else {
+                                        setStyle("-fx-background-color: #ffe3e3");
+                                    }
+                                }
+                            };
                         }
-                    };
-                }
-            });
+                    });
         }
 
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
@@ -876,7 +878,7 @@ public class RailConnectGUI extends Application {
             List<Client> clients = new java.util.ArrayList<>();
             clients.add(client);
 
-            if(datePicker.getValue() == null){
+            if (datePicker.getValue() == null) {
                 showAlert("Please select a departure date that matches the train's schedule.");
                 return;
             }
@@ -942,16 +944,21 @@ public class RailConnectGUI extends Application {
         // Create the booked trip
         BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected(), departureDate);
         System.out.println("DEBUG: trip departure date: " + departureDate);
+
         // Add a reservation for each client
         for (Client client : clients) {
-            Reservation reservation = new Reservation(client, connection, firstClassCheck.isSelected());
-            bookedTrip.addReservation(reservation);
+            // Loop through all connections in the trip
+            for (Connection conn : selectedTripForBooking.getConnections()) {
+                Reservation reservation = new Reservation(client, conn, firstClassCheck.isSelected());
+                bookedTrip.addReservation(reservation);
+            }
 
-            // Generate ticket for this reservation
-            Ticket ticket = new Ticket(reservation);
-            System.out.println("Generated ticket #" + ticket.getTicketId() + " for " + client.getFullName());
+            // Generate ticket for the first reservation (for backward compatibility)
+            if (!bookedTrip.getReservations().isEmpty()) {
+                Ticket ticket = new Ticket(bookedTrip.getReservations().get(0));
+                System.out.println("Generated ticket #" + ticket.getTicketId() + " for " + client.getFullName());
+            }
         }
-
         // Save to collection
         tripCollection.saveTrip(bookedTrip);
 
@@ -980,7 +987,7 @@ public class RailConnectGUI extends Application {
         return bookedTrip;
     }
 
-    private void showAlert(String message){
+    private void showAlert(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Error");
         alert.setHeaderText(null);
@@ -1002,27 +1009,28 @@ public class RailConnectGUI extends Application {
         Connection firstConnection = selectedTripForBooking.getConnections().get(0);
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
-        if(lastSelectedStartDay != null && !validDays.isEmpty()){
+        if (lastSelectedStartDay != null && !validDays.isEmpty()) {
             datePicker.setDayCellFactory(
-                new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>(){
-                @Override
-                public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker){
-                    return new javafx.scene.control.DateCell(){
+                    new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>() {
                         @Override
-                        public void updateItem(java.time.LocalDate date, boolean empty){
-                            super.updateItem(date, empty);
-                            if(empty) return;
-                            DayOfWeek day = date.getDayOfWeek();
-                            boolean available = validDays.contains(day);
+                        public javafx.scene.control.DateCell call(javafx.scene.control.DatePicker picker) {
+                            return new javafx.scene.control.DateCell() {
+                                @Override
+                                public void updateItem(java.time.LocalDate date, boolean empty) {
+                                    super.updateItem(date, empty);
+                                    if (empty)
+                                        return;
+                                    DayOfWeek day = date.getDayOfWeek();
+                                    boolean available = validDays.contains(day);
 
-                            setDisable(!available);
-                            if(available){
-                                setStyle("-fx-background-color: #e3ffe3");
-                            }
+                                    setDisable(!available);
+                                    if (available) {
+                                        setStyle("-fx-background-color: #e3ffe3");
+                                    }
+                                }
+                            };
                         }
-                    };
-                }
-            });
+                    });
         }
 
         VBox mainLayout = new VBox(20);
@@ -1057,18 +1065,18 @@ public class RailConnectGUI extends Application {
             travelersBox.getChildren().clear();
             String countStr = countField.getText().trim();
             int count;
-            try{
+            try {
                 count = Integer.parseInt(countStr);
-                if(count < 2 || count > 10){
+                if (count < 2 || count > 10) {
                     showAlert("Please enter a number between 2 and 10 travellers.");
                     return;
                 }
-            } catch (NumberFormatException ex){
+            } catch (NumberFormatException ex) {
                 showAlert("Invalid number of travelers.");
                 return;
             }
 
-            for(int i = 1; i <= count; i++){
+            for (int i = 1; i <= count; i++) {
                 VBox travelerForm = new VBox(5);
                 travelerForm.setStyle("-fx-border-color:#ccc; -fx-border-width: 1; -fx-padding:10;");
                 Label travelerTitle = new Label("Traveler " + i);
@@ -1094,34 +1102,35 @@ public class RailConnectGUI extends Application {
         confirmBtn.setOnAction(e -> {
             List<Client> clients = new java.util.ArrayList<>();
 
-            for(javafx.scene.Node node : travelersBox.getChildren()){
-                if(node instanceof VBox travelerForm){
+            for (javafx.scene.Node node : travelersBox.getChildren()) {
+                if (node instanceof VBox travelerForm) {
                     List<TextField> fields = travelerForm.getChildren()
-                    .stream()
-                    .filter(n -> n instanceof TextField)
-                    .map(n -> (TextField) n)
-                    .toList();
+                            .stream()
+                            .filter(n -> n instanceof TextField)
+                            .map(n -> (TextField) n)
+                            .toList();
 
-                    if(fields.size() != 4) continue;
+                    if (fields.size() != 4)
+                        continue;
                     String fn = fields.get(0).getText().trim();
                     String ln = fields.get(1).getText().trim();
                     String ageStr = fields.get(2).getText().trim();
                     String id = fields.get(3).getText().trim();
 
-                    if(fn.isEmpty() || ln.isEmpty() || ageStr.isEmpty() || id.isEmpty()){
+                    if (fn.isEmpty() || ln.isEmpty() || ageStr.isEmpty() || id.isEmpty()) {
                         showAlert("Please fill in all fields for all travelers.");
                         return;
                     }
 
                     int age;
-                    try{
+                    try {
                         age = Integer.parseInt(ageStr);
-                        if(age <= 0 || age > 150) {
+                        if (age <= 0 || age > 150) {
                             showAlert("Please enter a valid age (1-150).");
                             return;
                         }
-                    } catch(NumberFormatException ex){
-                        showAlert("Invalid age for " + fn +" " + ln);
+                    } catch (NumberFormatException ex) {
+                        showAlert("Invalid age for " + fn + " " + ln);
                         return;
                     }
 
@@ -1129,13 +1138,13 @@ public class RailConnectGUI extends Application {
                 }
             }
 
-            if(clients.isEmpty()){
+            if (clients.isEmpty()) {
                 showAlert("No traveler data entered");
                 return;
             }
             java.time.LocalDate chosenDate = datePicker.getValue();
             BookedTrip result = processBooking(clients, chosenDate);
-            if(result != null) {
+            if (result != null) {
                 multiStage.close();
             }
         });
@@ -1148,14 +1157,15 @@ public class RailConnectGUI extends Application {
         Label priceLabel = new Label("Price per traveler: €" + String.format("%.2f", pricePerPerson));
         priceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
 
-        mainLayout.getChildren().addAll(titleLabel, dateLabel, datePicker, infoLabel, countBox, scrollPane, priceLabel, bottomButtons);
+        mainLayout.getChildren().addAll(titleLabel, dateLabel, datePicker, infoLabel, countBox, scrollPane, priceLabel,
+                bottomButtons);
         Scene scene = new Scene(mainLayout, 500, 600);
         multiStage.setScene(scene);
         multiStage.initModality(Modality.APPLICATION_MODAL);
         multiStage.show();
     }
 
-    private void openViewTripsDialog(){
+    private void openViewTripsDialog() {
         Stage viewStage = new Stage();
         viewStage.initModality(Modality.APPLICATION_MODAL);
         viewStage.setTitle("View My Trips");
@@ -1182,7 +1192,7 @@ public class RailConnectGUI extends Application {
             String lastName = lastNameField.getText().trim();
             String id = idField.getText().trim();
 
-            if(lastName.isEmpty() || id.isEmpty()){
+            if (lastName.isEmpty() || id.isEmpty()) {
                 showAlert("Please enter both last name and ID.");
                 return;
             }
@@ -1195,14 +1205,20 @@ public class RailConnectGUI extends Application {
             sb.append("===========================================\n");
             sb.append("            CURRENT / FUTURE TRIPS\n");
             sb.append("===========================================\n");
-            if(currentTrips.isEmpty()) sb.append("No current or upcoming trips.\n");
-            else for (BookedTrip trip : currentTrips) sb.append(trip.toString()).append("\n");
+            if (currentTrips.isEmpty())
+                sb.append("No current or upcoming trips.\n");
+            else
+                for (BookedTrip trip : currentTrips)
+                    sb.append(trip.toString()).append("\n");
 
             sb.append("\n===========================================\n");
             sb.append("                PAST TRIPS\n");
             sb.append("===========================================\n");
-            if(pastTrips.isEmpty()) sb.append("No past trips.\n");
-            else for (BookedTrip trip : pastTrips) sb.append (trip.toString()).append("\n");
+            if (pastTrips.isEmpty())
+                sb.append("No past trips.\n");
+            else
+                for (BookedTrip trip : pastTrips)
+                    sb.append(trip.toString()).append("\n");
 
             resultsArea.setText(sb.toString());
         });
@@ -1212,6 +1228,7 @@ public class RailConnectGUI extends Application {
         viewStage.setScene(scene);
         viewStage.showAndWait();
     }
+
     public static void main(String[] args) {
         launch(args);
     }
