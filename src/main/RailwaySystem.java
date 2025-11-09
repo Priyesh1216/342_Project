@@ -7,13 +7,32 @@ import java.util.Map;
 public class RailwaySystem {
     private Connections connections;
     private TripCollection tripCollection;
+    private DatabaseManager dbManager;
 
     public RailwaySystem(TripCollection tripCollection) {
         this.connections = new Connections();
         this.tripCollection = tripCollection;
+        this.dbManager = new DatabaseManager();
+
+        connections.setDatabaseManager(dbManager);
+        tripCollection.setDatabaseManager(dbManager, connections);
+
+        System.out.println("System initialized with database");
     }
 
     public int loadConnectionData(String filepath) {
+        // Check if database already has connections
+        try {
+            int dbCount = dbManager.getConnectionCount();
+            if (dbCount > 0) {
+                System.out.println("Database already contains " + dbCount + " connections.");
+                System.out.println("Clear the database first if you want to reload from CSV.");
+                return dbCount;
+            }
+        } catch (Exception e) {
+            System.err.println("Error checking database: " + e.getMessage());
+        }
+
         connections.clear();
 
         CSVReader reader = new CSVReader(filepath);
@@ -139,12 +158,12 @@ public class RailwaySystem {
 
         // Find all first legs departing from origin
         List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
-        
-        // Define restrictions on layover times
-        short minLayoverMinutes = 30;       // At least 30 mins to allow for passengers to switch trains
-        short maxDayLayoverMinutes = 540;   // At most 9 hours during the day
 
-        if(startDay != null) {
+        // Define restrictions on layover times
+        short minLayoverMinutes = 30; // At least 30 mins to allow for passengers to switch trains
+        short maxDayLayoverMinutes = 540; // At most 9 hours during the day
+
+        if (startDay != null) {
             firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
         }
         for (Connection firstSegment : firstSegments) {
@@ -153,7 +172,7 @@ public class RailwaySystem {
 
             for (Connection secondSegment : secondSegments) {
                 int transferTime = calculateTransferTime(firstSegment, secondSegment);
-                
+
                 // Handle layover time limits
                 if (transferTime < minLayoverMinutes || transferTime > maxDayLayoverMinutes) {
                     continue;
@@ -179,10 +198,10 @@ public class RailwaySystem {
         List<Connection> firstSegments = connections.findMatching(depCity, null, depTime, null, trainType, daysOp);
 
         // Define restrictions on layover times
-        short minLayoverMinutes = 30;       // At least 30 mins to allow for passengers to switch trains
-        short maxDayLayoverMinutes = 540;   // At most 9 hours during the day
+        short minLayoverMinutes = 30; // At least 30 mins to allow for passengers to switch trains
+        short maxDayLayoverMinutes = 540; // At most 9 hours during the day
 
-        if(startDay != null){
+        if (startDay != null) {
             firstSegments.removeIf(conn -> !parseDays(conn.getDaysOfOperation()).contains(startDay));
         }
         for (Connection firstSegment : firstSegments) {
@@ -214,7 +233,6 @@ public class RailwaySystem {
                         continue;
                     }
 
-                    
                     Trip trip = new Trip();
                     trip.addConnection(firstSegment);
                     trip.addConnection(secondSegment);
@@ -272,13 +290,12 @@ public class RailwaySystem {
     }
 
     public Map<String, List<BookedTrip>> viewTrips(String lastName, String id) {
-        // Load from the database
-        List<BookedTrip> allTrips = DatabaseHelper.loadTrips(lastName, id);
+        List<BookedTrip> matchingTrips = tripCollection.findTripsByCredentials(lastName, id);
 
         List<BookedTrip> currentTrips = new ArrayList<>();
         List<BookedTrip> pastTrips = new ArrayList<>();
 
-        for (BookedTrip trip : allTrips) {
+        for (BookedTrip trip : matchingTrips) {
             if (trip.isFuture()) {
                 currentTrips.add(trip);
             } else {
@@ -359,6 +376,84 @@ public class RailwaySystem {
             out.add(java.time.DayOfWeek.of(idx + 1));
             if (idx == j)
                 break;
+        }
+    }
+
+    // Force reload from CSV, clearing existing database data
+    public int forceLoadConnectionData(String filepath) {
+        System.out.println("Force loading from CSV - clearing existing data...");
+        connections.clear();
+
+        CSVReader reader = new CSVReader(filepath);
+        reader.readData();
+
+        ArrayList<ArrayList<String>> data = reader.getData();
+        int loadedCount = 0;
+
+        int startRow = 0;
+
+        if (data.size() > 0) {
+            ArrayList<String> firstRow = data.get(0);
+            if (firstRow.size() > 0 && firstRow.get(0).toLowerCase().contains("route")) {
+                startRow = 1;
+            }
+        }
+
+        for (int i = startRow; i < data.size(); i++) {
+            ArrayList<String> row = data.get(i);
+
+            if (row.size() < 9) {
+                continue;
+            }
+
+            try {
+                String routeID = row.get(0).trim();
+                String depCityName = row.get(1).trim();
+                String arrCityName = row.get(2).trim();
+                String depTimeStr = row.get(3).trim();
+                String arrTimeStr = row.get(4).trim();
+                String trainType = row.get(5).trim();
+                String daysOfOp = row.get(6).trim();
+                String firstClassStr = row.get(7).trim();
+                String secondClassStr = row.get(8).trim();
+
+                if (routeID.isEmpty() || depCityName.isEmpty() || arrCityName.isEmpty()) {
+                    continue;
+                }
+
+                boolean isNextDay = arrTimeStr.contains("(+1d)");
+                String cleanDepTime = depTimeStr.replaceAll("\\s*\\(.*?\\)", "").trim();
+                String cleanArrTime = arrTimeStr.replaceAll("\\s*\\(.*?\\)", "").trim();
+
+                LocalTime depTime = LocalTime.parse(cleanDepTime);
+                LocalTime arrTime = LocalTime.parse(cleanArrTime);
+
+                double firstClassPrice = Double.parseDouble(firstClassStr.trim());
+                double secondClassPrice = Double.parseDouble(secondClassStr.trim());
+
+                City depCity = connections.findOrCreateCity(depCityName);
+                City arrCity = connections.findOrCreateCity(arrCityName);
+                Train train = connections.findOrCreateTrain(trainType);
+
+                Connection connection = new Connection(routeID, depCity, arrCity, depTime, arrTime,
+                        train, daysOfOp, firstClassPrice, secondClassPrice, isNextDay);
+
+                connections.add(connection);
+                loadedCount++;
+
+            } catch (Exception e) {
+                System.err.println("Error on row " + i + ": " + e.getMessage());
+            }
+        }
+
+        System.out.println("Loaded " + loadedCount + " connections from CSV to database");
+        return loadedCount;
+    }
+
+    // Clean up database connection when done
+    public void cleanup() {
+        if (dbManager != null) {
+            dbManager.close();
         }
     }
 }

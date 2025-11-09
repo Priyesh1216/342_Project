@@ -488,7 +488,8 @@ public class RailConnectGUI extends Application {
                     if (i < trip.getConnections().size() - 1) {
                         Connection nextConn = trip.getConnections().get(i + 1);
 
-                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn, currentArrivalDay);
+                        // int transferTime = layoverMinutesAcrossDays(conn, nextConn,
+                        // currentArrivalDay);
                         int transferTime = system.calculateTransferTime(conn, nextConn);
                         totalTransferTime += transferTime;
                         sb.append("     Transfer time (including days wait): " + formatDuration(transferTime) + "\n");
@@ -763,7 +764,7 @@ public class RailConnectGUI extends Application {
         Connection firstConnection = selectedTripForBooking.getConnections().get(0);
         Set<DayOfWeek> validDays = parseDaysOfOperation(firstConnection.getDaysOfOperation());
 
-        if(!validDays.isEmpty()){
+        if (!validDays.isEmpty()) {
             datePicker.setDayCellFactory(
                     new javafx.util.Callback<javafx.scene.control.DatePicker, javafx.scene.control.DateCell>() {
                         @Override
@@ -780,6 +781,8 @@ public class RailConnectGUI extends Application {
                                     setDisable(!available);
                                     if (available) {
                                         setStyle("-fx-background-color: #e3ffe3");
+                                    } else {
+                                        setStyle("-fx-background-color: #ffe3e3");
                                     }
                                 }
                             };
@@ -941,16 +944,21 @@ public class RailConnectGUI extends Application {
         // Create the booked trip
         BookedTrip bookedTrip = new BookedTrip(selectedTripForBooking, firstClassCheck.isSelected(), departureDate);
         System.out.println("DEBUG: trip departure date: " + departureDate);
+
         // Add a reservation for each client
         for (Client client : clients) {
-            Reservation reservation = new Reservation(client, connection, firstClassCheck.isSelected());
-            bookedTrip.addReservation(reservation);
+            // Loop through all connections in the trip
+            for (Connection conn : selectedTripForBooking.getConnections()) {
+                Reservation reservation = new Reservation(client, conn, firstClassCheck.isSelected());
+                bookedTrip.addReservation(reservation);
+            }
 
-            // Generate ticket for this reservation
-            Ticket ticket = new Ticket(reservation);
-            System.out.println("Generated ticket #" + ticket.getTicketId() + " for " + client.getFullName());
+            // Generate ticket for the first reservation (for backward compatibility)
+            if (!bookedTrip.getReservations().isEmpty()) {
+                Ticket ticket = new Ticket(bookedTrip.getReservations().get(0));
+                System.out.println("Generated ticket #" + ticket.getTicketId() + " for " + client.getFullName());
+            }
         }
-
         // Save to collection
         tripCollection.saveTrip(bookedTrip);
 
