@@ -87,7 +87,7 @@ public class DatabaseHelper {
                     "INSERT OR REPLACE INTO trips VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             Trip t = trip.getSelectedTrip();
-            Connection firstConn = t.getSegments().get(0).getConnection();
+            Connection firstConn = t.getConnections().get(0);
 
             ps.setString(1, trip.getTripId());
             ps.setString(2, trip.getPrimaryClient().getId());
@@ -169,9 +169,9 @@ public class DatabaseHelper {
                         isNextDay);
 
                 // Create Trip
-                Segment seg = new Segment(conn2);
+                
                 Trip trip = new Trip();
-                trip.addSegment(seg);
+                trip.addConnection(conn2);
                 trip.computeTotals(isFirstClass, 0);
 
                 // Create BookedTrip with all dates
